@@ -42,8 +42,11 @@ export async function GET(request: NextRequest) {
   const sortOrder = searchParams.get('sortOrder') || 'desc';
   const search = searchParams.get('search') || '';
   const position = searchParams.get('position') || '';
-  const minOverall = Number(searchParams.get('minOverall')) || 0;
-  const maxOverall = Number(searchParams.get('maxOverall')) || 100;
+  const minOverall = Number(searchParams.get('minOverall') || searchParams.get('ovrMin')) || 0;
+  const maxOverall = Number(searchParams.get('maxOverall') || searchParams.get('ovrMax')) || 100;
+  const minAge = Number(searchParams.get('ageMin')) || 0;
+  const maxAge = Number(searchParams.get('ageMax')) || 0;
+  const ownerFilter = searchParams.get('ownerFilter') || '';
   const interval = (searchParams.get('interval') as ProgressionInterval) || 'WEEK';
 
   try {
@@ -70,6 +73,20 @@ export async function GET(request: NextRequest) {
 
     if (maxOverall < 100) {
       conditions.push(sql`${players.overall} <= ${maxOverall}`);
+    }
+
+    if (minAge > 0) {
+      conditions.push(sql`${players.age} >= ${minAge}`);
+    }
+
+    if (maxAge > 0) {
+      conditions.push(sql`${players.age} <= ${maxAge}`);
+    }
+
+    if (ownerFilter === 'owned') {
+      conditions.push(sql`${players.ownerName} IS NOT NULL`);
+    } else if (ownerFilter === 'free') {
+      conditions.push(sql`${players.ownerName} IS NULL`);
     }
 
     const whereClause =

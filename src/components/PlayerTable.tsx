@@ -12,168 +12,100 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Search, ChevronLeft, ChevronRight,
-  TrendingUp, TrendingDown, Minus,
-  Loader2, SlidersHorizontal, X,
+  TrendingUp, TrendingDown, Minus, Loader2,
 } from 'lucide-react';
-import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
+import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
 
 interface ApiResponse {
   data: PlayerRow[];
-  pagination: { page: number; limit: number; total: number; totalPages: number; };
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-// ─── Drapeaux emoji ───────────────────────────────────────────────────────────
-const FLAGS: Record<string, string> = {
-  France: '🇫🇷', Germany: '🇩🇪', Spain: '🇪🇸', Italy: '🇮🇹',
-  Portugal: '🇵🇹', Brazil: '🇧🇷', Argentina: '🇦🇷', England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  Netherlands: '🇳🇱', Belgium: '🇧🇪', Croatia: '🇭🇷', Poland: '🇵🇱',
-  Senegal: '🇸🇳', Morocco: '🇲🇦', Nigeria: '🇳🇬', 'Ivory Coast': '🇨🇮',
-  Ghana: '🇬🇭', Cameroon: '🇨🇲', Egypt: '🇪🇬', Japan: '🇯🇵',
-  'South Korea': '🇰🇷', Australia: '🇦🇺', USA: '🇺🇸', Mexico: '🇲🇽',
-  Colombia: '🇨🇴', Uruguay: '🇺🇾', Chile: '🇨🇱', Ecuador: '🇪🇨',
-  Peru: '🇵🇪', Venezuela: '🇻🇪', Sweden: '🇸🇪', Denmark: '🇩🇰',
-  Norway: '🇳🇴', Switzerland: '🇨🇭', Austria: '🇦🇹', 'Czech Republic': '🇨🇿',
-  Slovakia: '🇸🇰', Hungary: '🇭🇺', Romania: '🇷🇴', Serbia: '🇷🇸',
-  Ukraine: '🇺🇦', Russia: '🇷🇺', Turkey: '🇹🇷', Greece: '🇬🇷',
-  Scotland: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', Wales: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', Ireland: '🇮🇪', Algeria: '🇩🇿',
-  Tunisia: '🇹🇳', Mali: '🇲🇱', Guinea: '🇬🇳', Gabon: '🇬🇦',
-  'DR Congo': '🇨🇩', Canada: '🇨🇦', Jamaica: '🇯🇲', 'Costa Rica': '🇨🇷',
-  Paraguay: '🇵🇾', Bolivia: '🇧🇴', Honduras: '🇭🇳', China: '🇨🇳',
-  Iran: '🇮🇷', 'Saudi Arabia': '🇸🇦', Qatar: '🇶🇦', Finland: '🇫🇮',
-  Iceland: '🇮🇸', Slovenia: '🇸🇮', Albania: '🇦🇱', 'North Macedonia': '🇲🇰',
-  'Cape Verde': '🇨🇻', 'South Africa': '🇿🇦', Burkina_Faso: '🇧🇫',
-  'Burkina Faso': '🇧🇫', Angola: '🇦🇴', Mozambique: '🇲🇿', Kenya: '🇰🇪',
-  'Guinea-Bissau': '🇬🇼', Liberia: '🇱🇷', 'Sierra Leone': '🇸🇱',
-  Congo: '🇨🇬', Benin: '🇧🇯', Togo: '🇹🇬', Niger: '🇳🇪',
-  Somalia: '🇸🇴', Ethiopia: '🇪🇹', Sudan: '🇸🇩', Libya: '🇱🇾',
-  Lebanon: '🇱🇧', Iraq: '🇮🇶', UAE: '🇦🇪', India: '🇮🇳',
-  Thailand: '🇹🇭', Vietnam: '🇻🇳', Indonesia: '🇮🇩', Philippines: '🇵🇭',
-};
+/* ── Sub-components ── */
 
-function getFlag(nat: string) { return FLAGS[nat] || '🏳️'; }
-
-// ─── Couleurs postes ──────────────────────────────────────────────────────────
-const POS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  GK:  { bg: '#2a0044', color: '#cc88ff', border: '#9933cc' },
-  CB:  { bg: '#001a44', color: '#88aaff', border: '#3366cc' },
-  RB:  { bg: '#001a44', color: '#88ccff', border: '#2266bb' },
-  LB:  { bg: '#001a44', color: '#88ccff', border: '#2266bb' },
-  RWB: { bg: '#001a33', color: '#66ddff', border: '#0099bb' },
-  LWB: { bg: '#001a33', color: '#66ddff', border: '#0099bb' },
-  CDM: { bg: '#001a1a', color: '#66ffee', border: '#009988' },
-  CM:  { bg: '#001a00', color: '#66ff99', border: '#009944' },
-  CAM: { bg: '#0d2200', color: '#aaff44', border: '#66bb00' },
-  RM:  { bg: '#221100', color: '#ffcc44', border: '#bb8800' },
-  LM:  { bg: '#221100', color: '#ffcc44', border: '#bb8800' },
-  RW:  { bg: '#2a1000', color: '#ff8844', border: '#cc5500' },
-  LW:  { bg: '#2a1000', color: '#ff8844', border: '#cc5500' },
-  CF:  { bg: '#2a0000', color: '#ff6666', border: '#cc2222' },
-  ST:  { bg: '#330000', color: '#ff4444', border: '#FF6600' },
-};
-
-// ─── Intervalles ──────────────────────────────────────────────────────────────
-const INTERVALS: { label: string; value: ProgressionInterval }[] = [
-  { label: '24H', value: '24H' },
-  { label: 'WEEK', value: 'WEEK' },
-  { label: 'MONTH', value: 'MONTH' },
-  { label: 'SEASON', value: 'CURRENT_SEASON' },
-  { label: 'ALL', value: 'ALL' },
-];
-
-// ─── Sub-composants ───────────────────────────────────────────────────────────
-function ProgBadge({ value }: { value: number }) {
+function ProgressionBadge({ value }: { value: number }) {
   if (value > 0) return (
-    <span style={{ color: '#00FF00', fontSize: '0.75em', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-      <TrendingUp size={10} />+{value}
+    <span className="inline-flex items-center gap-0.5 text-emerald-400 text-xs font-medium">
+      <TrendingUp size={12} />+{value}
     </span>
   );
   if (value < 0) return (
-    <span style={{ color: '#FF6600', fontSize: '0.75em', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-      <TrendingDown size={10} />{value}
+    <span className="inline-flex items-center gap-0.5 text-red-400 text-xs font-medium">
+      <TrendingDown size={12} />{value}
     </span>
   );
-  return <span style={{ color: '#333333', fontSize: '0.75em', display: 'inline-flex' }}><Minus size={10} /></span>;
+  return (
+    <span className="inline-flex items-center text-zinc-600 text-xs">
+      <Minus size={12} />
+    </span>
+  );
 }
 
-function PosBadge({ position }: { position: string }) {
-  const c = POS_COLORS[position] || { bg: '#111', color: '#888', border: '#444' };
+const POS_COLORS: Record<string, string> = {
+  GK:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  CB:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  RB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  LB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  CDM: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+  CM:  'bg-green-500/20 text-green-300 border-green-500/30',
+  CAM: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  RM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  LM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  RW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  LW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  CF:  'bg-red-500/20 text-red-300 border-red-500/30',
+  ST:  'bg-red-500/20 text-red-300 border-red-500/30',
+};
+
+function PositionBadge({ position }: { position: string }) {
   return (
-    <span style={{
-      display: 'inline-block',
-      backgroundColor: c.bg,
-      color: c.color,
-      border: `1px solid ${c.border}`,
-      padding: '1px 5px',
-      fontSize: '0.6em',
-      fontFamily: "'Press Start 2P', monospace",
-      letterSpacing: '0',
-      lineHeight: '1.6',
-    }}>
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30'}`}>
       {position}
     </span>
   );
 }
 
-function OvrBadge({ value }: { value: number }) {
-  let color = '#555555';
-  if (value >= 85) color = '#FFD700';
-  else if (value >= 80) color = '#FF9900';
-  else if (value >= 70) color = '#00FF00';
-  else if (value >= 60) color = '#4488FF';
-  else if (value >= 50) color = '#AAAAAA';
-  return (
-    <span style={{
-      fontFamily: "'Press Start 2P', monospace",
-      fontWeight: 'bold',
-      fontSize: '1em',
-      color,
-      textShadow: value >= 80 ? `0 0 8px ${color}55` : 'none',
-    }}>
-      {value}
-    </span>
-  );
+function OverallBadge({ value }: { value: number }) {
+  let color = 'text-zinc-400';
+  if (value >= 85) color = 'text-amber-400';
+  else if (value >= 80) color = 'text-orange-400';
+  else if (value >= 70) color = 'text-emerald-400';
+  else if (value >= 60) color = 'text-blue-400';
+  else if (value >= 50) color = 'text-zinc-300';
+  return <span className={`font-bold text-lg ${color}`}>{value}</span>;
 }
 
-function NatFlags({ nats }: { nats: string[] }) {
-  if (!nats?.length) return <span style={{ color: '#333' }}>—</span>;
-  return (
-    <span style={{ display: 'flex', gap: '3px', alignItems: 'center', flexWrap: 'wrap' }}>
-      {nats.map(n => (
-        <span key={n} title={n} style={{ fontSize: '1.1em', lineHeight: 1 }}>{getFlag(n)}</span>
-      ))}
-    </span>
-  );
-}
+/* ── Progression attributes ── */
+
+const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
+  { label: 'OVR', key: 'overall' },
+  { label: 'PAC', key: 'pace' },
+  { label: 'SHO', key: 'shooting' },
+  { label: 'PAS', key: 'passing' },
+  { label: 'DRI', key: 'dribbling' },
+  { label: 'DEF', key: 'defense' },
+  { label: 'PHY', key: 'physical' },
+];
+
+/* ── Table columns ── */
 
 const columnHelper = createColumnHelper<PlayerRow>();
-
-const PROG_ATTRS = [
-  { label: 'OVR', key: 'overall', cls: 'attr-overall' },
-  { label: 'PAC', key: 'pace', cls: 'attr-pace' },
-  { label: 'SHO', key: 'shooting', cls: 'attr-shooting' },
-  { label: 'PAS', key: 'passing', cls: 'attr-passing' },
-  { label: 'DRI', key: 'dribbling', cls: 'attr-dribbling' },
-  { label: 'DEF', key: 'defense', cls: 'attr-defense' },
-  { label: 'PHY', key: 'physical', cls: 'attr-physical' },
-];
 
 const columns = [
   columnHelper.accessor('id', {
     header: 'ID',
-    cell: i => <span style={{ color: '#444', fontSize: '0.65em', fontFamily: 'monospace' }}>{i.getValue()}</span>,
+    cell: (info) => <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>,
   }),
-  columnHelper.accessor(r => `${r.firstName} ${r.lastName}`, {
+  columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
     id: 'name',
-    header: 'JOUEUR',
-    cell: i => {
-      const row = i.row.original;
+    header: 'Player',
+    cell: (info) => {
+      const row = info.row.original;
       return (
         <div>
-          <div style={{ fontFamily: "'Press Start 2P', monospace", color: '#FFFFFF', fontSize: '0.75em', marginBottom: '4px' }}>
-            {row.firstName} {row.lastName}
-          </div>
-          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-            {(row.positions as string[])?.map(p => <PosBadge key={p} position={p} />)}
+          <div className="font-semibold text-white">{row.firstName} {row.lastName}</div>
+          <div className="flex gap-1 mt-0.5">
+            {row.positions.map((pos) => <PositionBadge key={pos} position={pos} />)}
           </div>
         </div>
       );
@@ -181,46 +113,39 @@ const columns = [
   }),
   columnHelper.accessor('overall', {
     header: 'OVR',
-    cell: i => <OvrBadge value={i.getValue()} />,
+    cell: (info) => <OverallBadge value={info.getValue()} />,
   }),
   columnHelper.accessor('age', {
-    header: 'AGE',
-    cell: i => <span style={{ color: '#AAAAAA', fontSize: '0.8em' }}>{i.getValue()}</span>,
+    header: 'Age',
+    cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
   }),
   columnHelper.accessor('nationalities', {
-    header: 'NAT',
-    cell: i => <NatFlags nats={i.getValue() as string[]} />,
+    header: 'Nat',
+    cell: (info) => (
+      <span className="text-zinc-400 text-sm">{info.getValue()?.join(', ') || '-'}</span>
+    ),
     enableSorting: false,
   }),
   columnHelper.accessor('ownerName', {
-    header: 'OWNER',
-    cell: i => (
-      <span style={{
-        fontSize: '0.65em',
-        color: i.getValue() ? '#CCCCCC' : '#333333',
-        fontStyle: i.getValue() ? 'normal' : 'italic',
-        display: 'block',
-        maxWidth: '150px',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}>
-        {i.getValue() || 'FREE AGENT'}
+    header: 'Owner',
+    cell: (info) => (
+      <span className="text-zinc-400 text-sm truncate max-w-[150px] block">
+        {info.getValue() || <span className="text-zinc-600 italic">Free Agent</span>}
       </span>
     ),
     enableSorting: false,
   }),
   columnHelper.accessor('progression', {
-    header: 'PROGRESSION',
-    cell: i => {
-      const prog = i.getValue();
-      if (!prog) return <span style={{ color: '#333', fontSize: '0.65em' }}>N/A</span>;
+    header: 'Progression',
+    cell: (info) => {
+      const prog = info.getValue();
+      if (!prog) return <span className="text-zinc-600 text-xs">N/A</span>;
       return (
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {PROG_ATTRS.map(({ label, key }) => (
-            <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-              <span style={{ fontSize: '0.5em', color: '#444444', letterSpacing: '0.05em' }}>{label}</span>
-              <ProgBadge value={(prog as unknown as Record<string, number>)[key]} />
+        <div className="flex items-center gap-3">
+          {PROG_KEYS.map(({ label, key }) => (
+            <div key={key} className="flex flex-col items-center">
+              <span className="text-[9px] text-zinc-500 uppercase">{label}</span>
+              <ProgressionBadge value={prog[key]} />
             </div>
           ))}
         </div>
@@ -230,28 +155,33 @@ const columns = [
   }),
 ];
 
-// ─── Composant principal ──────────────────────────────────────────────────────
+/* ── Intervals ── */
+
+const INTERVALS: { label: string; value: ProgressionInterval }[] = [
+  { label: '24H', value: '24H' },
+  { label: 'Week', value: 'WEEK' },
+  { label: 'Month', value: 'MONTH' },
+  { label: 'Season', value: 'CURRENT_SEASON' },
+  { label: 'All Time', value: 'ALL' },
+];
+
+const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'CF', 'ST'];
+
+/* ── Main component ── */
+
 export default function PlayerTable() {
   const [data, setData] = useState<PlayerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [position, setPosition] = useState('');
-  const [interval, setInterval] = useState<ProgressionInterval>('WEEK');
-
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [ageMin, setAgeMin] = useState('');
-  const [ageMax, setAgeMax] = useState('');
-  const [ovrMin, setOvrMin] = useState('');
-  const [ovrMax, setOvrMax] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState<'' | 'owned' | 'free'>('');
-
+  const [interval, setInterval] = useState<ProgressionInterval>('ALL');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
 
+  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
@@ -265,11 +195,6 @@ export default function PlayerTable() {
       const params = new URLSearchParams({ page: String(page), limit: '50', sortBy, sortOrder, interval });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (position) params.set('position', position);
-      if (ageMin) params.set('ageMin', ageMin);
-      if (ageMax) params.set('ageMax', ageMax);
-      if (ovrMin) params.set('ovrMin', ovrMin);
-      if (ovrMax) params.set('ovrMax', ovrMax);
-      if (ownerFilter) params.set('ownerFilter', ownerFilter);
 
       const res = await fetch(`/api/players?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -278,16 +203,14 @@ export default function PlayerTable() {
       setTotalPages(json.pagination.totalPages);
       setTotal(json.pagination.total);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch players:', err);
     } finally {
       setLoading(false);
     }
-  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, ownerFilter]);
+  }, [page, sorting, debouncedSearch, position, interval]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, ownerFilter]);
-
-  const hasFilters = ageMin || ageMax || ovrMin || ovrMax || ownerFilter;
+  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval]);
 
   const table = useReactTable({
     data,
@@ -298,267 +221,85 @@ export default function PlayerTable() {
     manualSorting: true,
   });
 
-  const S = {
-    // Styles inline réutilisables
-    card: {
-      backgroundColor: '#000000',
-      border: '1px solid #FF6600',
-      boxShadow: '0 0 8px rgba(255,102,0,0.25)',
-      marginBottom: '16px',
-    } as React.CSSProperties,
-    cardHeader: {
-      backgroundColor: '#330000',
-      padding: '8px 14px',
-      borderBottom: '1px solid #FF6600',
-      fontFamily: "'Press Start 2P', monospace",
-      color: '#FF6600',
-      fontSize: '0.6em',
-      letterSpacing: '0.06em',
-    } as React.CSSProperties,
-    input: {
-      backgroundColor: '#0a0a0a',
-      border: '1px solid #333333',
-      color: '#FFFFFF',
-      padding: '7px 10px',
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '0.6em',
-      outline: 'none',
-      width: '100%',
-    } as React.CSSProperties,
-    select: {
-      backgroundColor: '#0a0a0a',
-      border: '1px solid #333333',
-      color: '#FFFFFF',
-      padding: '7px 10px',
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '0.55em',
-      outline: 'none',
-      cursor: 'pointer',
-    } as React.CSSProperties,
-  };
-
   return (
-    <div>
-      {/* ── Filtres principaux ── */}
-      <div style={S.card}>
-        <div style={S.cardHeader}>▶ FILTRES ET RECHERCHE</div>
-        <div style={{ padding: '12px 14px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-
-            {/* Search */}
-            <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
-              <Search style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#444' }} size={14} />
-              <input
-                type="text"
-                placeholder="SEARCH PLAYER..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ ...S.input, paddingLeft: '28px' }}
-              />
-            </div>
-
-            {/* Position */}
-            <select value={position} onChange={e => setPosition(e.target.value)} style={S.select}>
-              <option value="">ALL POSITIONS</option>
-              <optgroup label="── GARDIEN ──">
-                <option value="GK">GK — Goalkeeper</option>
-              </optgroup>
-              <optgroup label="── DÉFENSEURS ──">
-                <option value="CB">CB — Centre Back</option>
-                <option value="RB">RB — Right Back</option>
-                <option value="LB">LB — Left Back</option>
-                <option value="RWB">RWB — Right Wing Back</option>
-                <option value="LWB">LWB — Left Wing Back</option>
-              </optgroup>
-              <optgroup label="── MILIEUX ──">
-                <option value="CDM">CDM — Defensive Mid</option>
-                <option value="CM">CM — Central Mid</option>
-                <option value="CAM">CAM — Attacking Mid</option>
-                <option value="RM">RM — Right Mid</option>
-                <option value="LM">LM — Left Mid</option>
-              </optgroup>
-              <optgroup label="── ATTAQUANTS ──">
-                <option value="RW">RW — Right Winger</option>
-                <option value="LW">LW — Left Winger</option>
-                <option value="CF">CF — Centre Forward</option>
-                <option value="ST">ST — Striker</option>
-              </optgroup>
-            </select>
-
-            {/* Intervalles */}
-            <div style={{ display: 'flex', gap: '2px', backgroundColor: '#0a0000', padding: '3px', border: '1px solid #330000' }}>
-              {INTERVALS.map(int => (
-                <button
-                  key={int.value}
-                  onClick={() => setInterval(int.value)}
-                  style={{
-                    backgroundColor: interval === int.value ? '#FF6600' : 'transparent',
-                    color: interval === int.value ? '#000000' : '#555555',
-                    border: 'none',
-                    padding: '5px 10px',
-                    fontFamily: "'Press Start 2P', monospace",
-                    fontSize: '0.55em',
-                    cursor: 'pointer',
-                    transition: 'all 0.1s',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {int.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Advanced toggle */}
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              style={{
-                backgroundColor: hasFilters ? '#330000' : '#000000',
-                color: hasFilters ? '#FF6600' : '#444444',
-                border: `1px solid ${hasFilters ? '#FF6600' : '#333333'}`,
-                padding: '6px 10px',
-                fontFamily: "'Press Start 2P', monospace",
-                fontSize: '0.55em',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <SlidersHorizontal size={12} />
-              FILTRES {hasFilters && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#FF6600', display: 'inline-block' }} />}
-            </button>
-
-            {/* Total */}
-            <div style={{ marginLeft: 'auto', fontFamily: "'Press Start 2P', monospace", fontSize: '0.55em', color: '#555555' }}>
-              <span style={{ color: '#FF6600' }}>{total.toLocaleString()}</span> JOUEURS
-            </div>
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="glass-card p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input
+              type="text"
+              placeholder="Search players..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/25 transition-colors"
+            />
           </div>
 
-          {/* ── Filtres avancés ── */}
-          {showAdvanced && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              style={{
-                marginTop: '12px',
-                paddingTop: '12px',
-                borderTop: '1px solid #330000',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '16px',
-                alignItems: 'flex-end',
-              }}
-            >
-              {/* Âge */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '0.5em', color: '#555', letterSpacing: '0.06em' }}>ÂGE</label>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input type="number" placeholder="MIN" value={ageMin} onChange={e => setAgeMin(e.target.value)}
-                    style={{ ...S.input, width: '60px', textAlign: 'center' }} />
-                  <span style={{ color: '#333', fontSize: '0.7em' }}>→</span>
-                  <input type="number" placeholder="MAX" value={ageMax} onChange={e => setAgeMax(e.target.value)}
-                    style={{ ...S.input, width: '60px', textAlign: 'center' }} />
-                </div>
-              </div>
+          {/* Position */}
+          <select
+            value={position}
+            onChange={(e) => setPosition(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors"
+          >
+            <option value="">All Positions</option>
+            {POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+          </select>
 
-              {/* Overall */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '0.5em', color: '#555', letterSpacing: '0.06em' }}>OVERALL</label>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input type="number" placeholder="MIN" value={ovrMin} onChange={e => setOvrMin(e.target.value)}
-                    style={{ ...S.input, width: '60px', textAlign: 'center' }} />
-                  <span style={{ color: '#333', fontSize: '0.7em' }}>→</span>
-                  <input type="number" placeholder="MAX" value={ovrMax} onChange={e => setOvrMax(e.target.value)}
-                    style={{ ...S.input, width: '60px', textAlign: 'center' }} />
-                </div>
-              </div>
+          {/* Interval Tabs */}
+          <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
+            {INTERVALS.map((int) => (
+              <button
+                key={int.value}
+                onClick={() => setInterval(int.value)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  interval === int.value
+                    ? 'bg-orange-500/30 text-orange-300 border border-orange-500/30'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {int.label}
+              </button>
+            ))}
+          </div>
 
-              {/* Owner */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '0.5em', color: '#555', letterSpacing: '0.06em' }}>OWNERSHIP</label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {[
-                    { v: '' as const, label: 'TOUS' },
-                    { v: 'owned' as const, label: 'OWNED' },
-                    { v: 'free' as const, label: 'FREE' },
-                  ].map(opt => (
-                    <button
-                      key={opt.v}
-                      onClick={() => setOwnerFilter(opt.v)}
-                      style={{
-                        backgroundColor: ownerFilter === opt.v ? '#FF6600' : '#000000',
-                        color: ownerFilter === opt.v ? '#000000' : '#555555',
-                        border: `1px solid ${ownerFilter === opt.v ? '#FF6600' : '#333333'}`,
-                        padding: '5px 8px',
-                        fontFamily: "'Press Start 2P', monospace",
-                        fontSize: '0.5em',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Reset */}
-              {hasFilters && (
-                <button
-                  onClick={() => { setAgeMin(''); setAgeMax(''); setOvrMin(''); setOvrMax(''); setOwnerFilter(''); }}
-                  style={{
-                    backgroundColor: '#000000',
-                    color: '#FF3333',
-                    border: '1px solid #FF3333',
-                    padding: '5px 10px',
-                    fontFamily: "'Press Start 2P', monospace",
-                    fontSize: '0.5em',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                  }}
-                >
-                  <X size={10} /> RESET
-                </button>
-              )}
-            </motion.div>
-          )}
+          {/* Total */}
+          <div className="text-zinc-500 text-sm">
+            <span className="text-orange-400 font-medium">{total.toLocaleString()}</span> players
+          </div>
         </div>
       </div>
 
-      {/* ── Tableau ── */}
-      <div style={S.card}>
-        <div style={S.cardHeader}>▶ DONNÉES JOUEURS — {total.toLocaleString()} RÉSULTATS</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Press Start 2P', monospace" }}>
+      {/* Table */}
+      <div className="glass-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
             <thead>
-              {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id} style={{ backgroundColor: '#1a0000', borderBottom: '1px solid #FF6600' }}>
-                  {hg.headers.map(header => (
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="border-b border-white/10">
+                  {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      style={{
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        fontSize: '0.6em',
-                        color: '#FF6600',
-                        letterSpacing: '0.06em',
-                        fontWeight: 'normal',
-                        whiteSpace: 'nowrap',
-                        cursor: header.column.getCanSort() ? 'pointer' : 'default',
-                        userSelect: 'none',
-                      }}
-                      onClick={header.column.getToggleSortingHandler()}
+                      className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider"
                     >
                       {header.isPlaceholder ? null : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <div
+                          className={`flex items-center gap-1 ${
+                            header.column.getCanSort()
+                              ? 'cursor-pointer select-none hover:text-zinc-300 transition-colors'
+                              : ''
+                          }`}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {header.column.getCanSort() && (
                             header.column.getIsSorted() === 'asc'
-                              ? <ArrowUp size={12} color="#FF6600" />
+                              ? <ArrowUp size={14} className="text-orange-400" />
                               : header.column.getIsSorted() === 'desc'
-                              ? <ArrowDown size={12} color="#FF6600" />
-                              : <ArrowUpDown size={12} color="#333333" />
+                              ? <ArrowDown size={14} className="text-orange-400" />
+                              : <ArrowUpDown size={14} className="text-zinc-600" />
                           )}
                         </div>
                       )}
@@ -570,37 +311,30 @@ export default function PlayerTable() {
             <tbody>
               <AnimatePresence mode="popLayout">
                 {loading ? (
-                  <tr key="loading">
-                    <td colSpan={columns.length} style={{ padding: '40px', textAlign: 'center' }}>
-                      <div style={{ color: '#FF6600', fontFamily: "'Press Start 2P', monospace", fontSize: '0.65em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                        <Loader2 size={16} className="animate-spin" />
-                        CHARGEMENT...
-                      </div>
+                  <motion.tr key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
+                      <Loader2 className="animate-spin mx-auto mb-2 text-orange-500" size={24} />
+                      Loading players...
                     </td>
-                  </tr>
+                  </motion.tr>
                 ) : data.length === 0 ? (
-                  <tr key="empty">
-                    <td colSpan={columns.length} style={{ padding: '40px', textAlign: 'center', color: '#333', fontFamily: "'Press Start 2P', monospace", fontSize: '0.6em' }}>
-                      AUCUN JOUEUR TROUVÉ
+                  <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
+                      No players found.
                     </td>
-                  </tr>
+                  </motion.tr>
                 ) : (
-                  table.getRowModel().rows.map((row, i) => (
+                  table.getRowModel().rows.map((row, index) => (
                     <motion.tr
-                      key={row.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ delay: i * 0.008 }}
-                      style={{
-                        backgroundColor: i % 2 === 0 ? '#0a0000' : '#0d0000',
-                        borderBottom: '1px solid #1a0000',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#1a0800')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = i % 2 === 0 ? '#0a0000' : '#0d0000')}
+                      key={row.original.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ delay: index * 0.02 }}
+                      className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
                     >
-                      {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} style={{ padding: '10px 12px', verticalAlign: 'middle' }}>
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-3">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -611,56 +345,27 @@ export default function PlayerTable() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* ── Pagination ── */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '10px 14px',
-          borderTop: '1px solid #330000',
-          backgroundColor: '#0a0000',
-        }}>
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-2">
+        <div className="text-sm text-zinc-500">
+          Page <span className="text-orange-400">{page}</span> / {totalPages}
+        </div>
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              backgroundColor: '#000000',
-              color: page === 1 ? '#222222' : '#FF6600',
-              border: `1px solid ${page === 1 ? '#222222' : '#FF6600'}`,
-              padding: '5px 10px',
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: '0.55em',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronLeft size={12} /> PREV
+            <ChevronLeft size={16} />
           </button>
-
-          <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '0.55em', color: '#555555' }}>
-            PAGE <span style={{ color: '#FF6600' }}>{page}</span> / {totalPages}
-          </span>
-
           <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            style={{
-              backgroundColor: '#000000',
-              color: page === totalPages ? '#222222' : '#FF6600',
-              border: `1px solid ${page === totalPages ? '#222222' : '#FF6600'}`,
-              padding: '5px 10px',
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: '0.55em',
-              cursor: page === totalPages ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            NEXT <ChevronRight size={12} />
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>

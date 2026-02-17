@@ -220,7 +220,7 @@ const columns = [
           {PROG_ATTRS.map(({ label, key }) => (
             <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
               <span style={{ fontSize: '0.5em', color: '#444444', letterSpacing: '0.05em' }}>{label}</span>
-              <ProgBadge value={(prog as Record<string, number>)[key]} />
+              <ProgBadge value={(prog as unknown as Record<string, number>)[key]} />
             </div>
           ))}
         </div>

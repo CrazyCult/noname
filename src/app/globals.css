@@ -1,44 +1,160 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 @theme inline {
-  --color-background: #030407;
-  --color-foreground: #ededed;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-background: #000000;
+  --color-foreground: #FFFFFF;
+  --color-accent: #FF6600;
+  --color-accent-hover: #FF8833;
+  --color-secondary: #330000;
+  --color-secondary-dark: #220000;
+  --color-positive: #00FF00;
+  --color-negative: #FF0000;
+  --color-neutral-muted: #666666;
 }
 
-/* Base styles */
+/* ── Base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
-  min-height: 100vh;
+  background-color: #000000;
+  color: #FFFFFF;
+  font-family: 'Press Start 2P', monospace;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+  overflow-x: hidden;
+  font-size: 13px;
 }
 
-/* Glassmorphism card */
-.glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+/* ── Scan lines overlay ── */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 102, 0, 0.025),
+    rgba(255, 102, 0, 0.025) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
 }
 
-/* Glass button */
-.glass-button {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #a1a1aa;
-  transition: all 0.2s ease;
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #000000; }
+::-webkit-scrollbar-thumb { background: #FF6600; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #FF8833; }
+
+/* ── Retro card (remplace glass-card) ── */
+.retro-card {
+  background-color: #000000;
+  border: 1px solid #FF6600;
+  box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+}
+
+.retro-card-inner {
+  background-color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ── Module header ── */
+.module-header {
+  background-color: #330000;
+  color: #FF6600;
+  padding: 8px 12px;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #FF6600;
+}
+
+/* ── Retro button ── */
+.retro-btn {
+  background-color: #000000;
+  color: #FF6600;
+  border: 1px solid #FF6600;
+  padding: 6px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.65em;
   cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.05em;
 }
 
-.glass-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fafafa;
+.retro-btn:hover {
+  background-color: #FF6600;
+  color: #000000;
+  box-shadow: 0 0 8px rgba(255, 102, 0, 0.6);
 }
 
-/* Radial gradient accent */
+.retro-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.retro-btn-active {
+  background-color: #FF6600;
+  color: #000000;
+  border: 1px solid #FF6600;
+  box-shadow: 0 0 6px rgba(255, 102, 0, 0.5);
+}
+
+/* ── Retro input ── */
+.retro-input {
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  padding: 7px 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.65em;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.retro-input:focus {
+  border-color: #FF6600;
+  box-shadow: 0 0 6px rgba(255, 102, 0, 0.3);
+}
+
+.retro-input::placeholder {
+  color: #444444;
+}
+
+/* ── Retro select ── */
+.retro-select {
+  background-color: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  padding: 7px 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.6em;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23FF6600'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.retro-select:focus {
+  border-color: #FF6600;
+}
+
+.retro-select option {
+  background: #111111;
+  color: #FFFFFF;
+}
+
+/* ── Orange glow accent (remplace glow-accent) ── */
 .glow-accent {
   position: relative;
 }
@@ -46,42 +162,131 @@ body {
 .glow-accent::before {
   content: '';
   position: absolute;
-  top: -200px;
+  top: -150px;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 400px;
+  width: 700px;
+  height: 300px;
   background: radial-gradient(
     ellipse at center,
-    rgba(59, 130, 246, 0.08) 0%,
-    rgba(59, 130, 246, 0.03) 40%,
-    transparent 70%
+    rgba(255, 102, 0, 0.06) 0%,
+    rgba(255, 102, 0, 0.02) 50%,
+    transparent 75%
   );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Select dropdown dark theme */
-select option {
-  background: #1a1a2e;
-  color: #fafafa;
+/* ── Blink animation ── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.blink {
+  animation: blink 1s infinite;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* ── Fade in ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+.fade-in {
+  animation: fadeIn 0.2s ease forwards;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+/* ── Table retro ── */
+.retro-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75em;
 }
+
+.retro-table thead th {
+  background-color: #330000;
+  color: #FF6600;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #FF6600;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.retro-table tbody tr:nth-child(odd) {
+  background-color: #0d0d0d;
+}
+
+.retro-table tbody tr:nth-child(even) {
+  background-color: #111111;
+}
+
+.retro-table tbody tr:hover {
+  background-color: #1a0000;
+}
+
+.retro-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a1a1a;
+  vertical-align: middle;
+}
+
+/* ── Gain colors ── */
+.gain-positive { color: #00FF00; }
+.gain-negative { color: #FF6600; }
+.gain-neutral   { color: #555555; }
+
+/* ── Position badges ── */
+.pos-badge {
+  display: inline-block;
+  padding: 2px 5px;
+  font-size: 0.7em;
+  font-family: 'Press Start 2P', monospace;
+  border: 1px solid;
+  letter-spacing: 0;
+}
+
+/* ── Loading indicator ── */
+.loading-indicator {
+  text-align: center;
+  padding: 40px;
+  color: #FF6600;
+  font-size: 0.75em;
+  animation: blink 1s infinite;
+}
+
+/* ── Pagination button ── */
+.page-btn {
+  background-color: #000000;
+  color: #FF6600;
+  border: 1px solid #FF6600;
+  padding: 5px 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.55em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.page-btn:hover:not(:disabled) {
+  background-color: #FF6600;
+  color: #000000;
+}
+
+.page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Sort arrows ── */
+.sort-icon { color: #FF6600; }
+.sort-icon-inactive { color: #333333; }
+
+/* ── Stat attribute pills ── */
+.attr-pace       { color: #FF5252; border-left: 2px solid #FF5252; padding-left: 4px; }
+.attr-shooting   { color: #4CAF50; border-left: 2px solid #4CAF50; padding-left: 4px; }
+.attr-passing    { color: #2196F3; border-left: 2px solid #2196F3; padding-left: 4px; }
+.attr-dribbling  { color: #FF9800; border-left: 2px solid #FF9800; padding-left: 4px; }
+.attr-defense    { color: #9C27B0; border-left: 2px solid #9C27B0; padding-left: 4px; }
+.attr-physical   { color: #607D8B; border-left: 2px solid #607D8B; padding-left: 4px; }
+.attr-overall    { color: #FFFFFF; border-left: 2px solid #FF6600; padding-left: 4px; font-weight: bold; }

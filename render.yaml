@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: mflscout-crawler
+    env: node
+    buildCommand: npm install
+    startCommand: echo "Crawler ready"
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PORT
+        value: 3306
+
+  - type: cron
+    name: mflscout-cron-morning
+    env: node
+    schedule: "15 9 * * *"  # 10h15 Paris (9h15 UTC)
+    buildCommand: npm install
+    startCommand: bash scripts/auto-crawl.sh
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+
+  - type: cron
+    name: mflscout-cron-evening
+    env: node
+    schedule: "0 22 * * *"  # 23h00 Paris (22h00 UTC)
+    buildCommand: npm install
+    startCommand: bash scripts/auto-crawl.sh
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false

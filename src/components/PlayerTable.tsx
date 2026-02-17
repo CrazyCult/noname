@@ -229,7 +229,14 @@ export default function PlayerTable() {
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (position) params.set('position', position);
 
-      const res = await fetch(`/api/players?${params}`);
+      // 🔥 MODIFICATION : Appel vers l'API Render au lieu de l'API locale
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const res = await fetch(`${API_URL}/api/players?${params}`);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
       const json: ApiResponse = await res.json();
 
       setData(json.data);

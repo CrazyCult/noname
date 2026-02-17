@@ -11,6 +11,7 @@ import 'dotenv/config';
 import { getDb } from '../db';
 import { players, progressions } from '../db/schema';
 import { fetchProgressions } from '../lib/mfl-api';
+import { sql } from 'drizzle-orm';
 import type { ProgressionInterval } from '../types/mfl';
 
 const BATCH_SIZE = 200;
@@ -48,37 +49,39 @@ async function crawlProgressions() {
 
     const data = await fetchProgressions(batch, interval);
 
+    const values = [];
     for (const [idStr, prog] of Object.entries(data)) {
-      const playerId = Number(idStr);
-
-      // ✅ Vérification ajoutée ici
       if (!prog || prog.overall === null || prog.overall === undefined) {
         skipped++;
         continue;
       }
 
+      values.push({
+        playerId: Number(idStr),
+        interval,
+        overall: prog.overall ?? 0,
+        pace: prog.pace ?? 0,
+        shooting: prog.shooting ?? 0,
+        passing: prog.passing ?? 0,
+        dribbling: prog.dribbling ?? 0,
+        defense: prog.defense ?? 0,
+        physical: prog.physical ?? 0,
+      });
+    }
+
+    if (values.length > 0) {
       await db
         .insert(progressions)
-        .values({
-          playerId,
-          interval,
-          overall: prog.overall ?? 0,
-          pace: prog.pace ?? 0,
-          shooting: prog.shooting ?? 0,
-          passing: prog.passing ?? 0,
-          dribbling: prog.dribbling ?? 0,
-          defense: prog.defense ?? 0,
-          physical: prog.physical ?? 0,
-        })
+        .values(values)
         .onDuplicateKeyUpdate({
           set: {
-            overall: prog.overall ?? 0,
-            pace: prog.pace ?? 0,
-            shooting: prog.shooting ?? 0,
-            passing: prog.passing ?? 0,
-            dribbling: prog.dribbling ?? 0,
-            defense: prog.defense ?? 0,
-            physical: prog.physical ?? 0,
+            overall: sql`VALUES(${progressions.overall})`,
+            pace: sql`VALUES(${progressions.pace})`,
+            shooting: sql`VALUES(${progressions.shooting})`,
+            passing: sql`VALUES(${progressions.passing})`,
+            dribbling: sql`VALUES(${progressions.dribbling})`,
+            defense: sql`VALUES(${progressions.defense})`,
+            physical: sql`VALUES(${progressions.physical})`,
           },
         });
     }

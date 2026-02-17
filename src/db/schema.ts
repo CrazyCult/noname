@@ -55,7 +55,7 @@ export const progressions = mysqlTable(
 export const playerSnapshots = mysqlTable(
   'player_snapshots',
   {
-    id: int('id').primaryKey().autoIncrement(),
+    id: int('id').primaryKey().autoincrement(),
     playerId: int('player_id')
       .notNull()
       .references(() => players.id),

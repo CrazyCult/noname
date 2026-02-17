@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: mflscout-crawler
+    name: mflscout-api
     env: node
-    buildCommand: npm install
-    startCommand: echo "Crawler ready"
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
     envVars:
       - key: DB_HOST
         sync: false

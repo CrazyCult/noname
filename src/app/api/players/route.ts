@@ -87,12 +87,15 @@ export async function GET(request: NextRequest) {
     // Sort column mapping
     const sortColumn = (() => {
       switch (sortBy) {
-        case 'age':
-          return players.age;
+        case 'id':
+          return players.id;
+        case 'name':
         case 'firstName':
           return players.firstName;
         case 'lastName':
           return players.lastName;
+        case 'age':
+          return players.age;
         default:
           return players.overall;
       }
@@ -149,32 +152,54 @@ export async function GET(request: NextRequest) {
           };
         }
       } else {
-        // Pour les autres intervalles : Calculer depuis les snapshots
+        // Pour les autres intervalles : Calculer depuis les snapshots (2 requêtes bulk)
         const startDate = getStartDate(interval);
+        const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
+
+        // Snapshots les plus récents par joueur (1 requête)
+        const currentSnapshots = await db
+          .select()
+          .from(playerSnapshots)
+          .where(
+            sql`${playerSnapshots.playerId} IN (${idsJoin})
+              AND ${playerSnapshots.id} IN (
+                SELECT MAX(${playerSnapshots.id})
+                FROM ${playerSnapshots}
+                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
+                GROUP BY ${playerSnapshots.playerId}
+              )`
+          );
+
+        // Snapshots de référence (les plus anciens après startDate) par joueur (1 requête)
+        const referenceSnapshots = await db
+          .select()
+          .from(playerSnapshots)
+          .where(
+            sql`${playerSnapshots.playerId} IN (${idsJoin})
+              AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
+              AND ${playerSnapshots.id} IN (
+                SELECT MIN(${playerSnapshots.id})
+                FROM ${playerSnapshots}
+                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
+                  AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
+                GROUP BY ${playerSnapshots.playerId}
+              )`
+          );
+
+        const currentMap: Record<number, typeof currentSnapshots[number]> = {};
+        for (const snap of currentSnapshots) {
+          currentMap[snap.playerId] = snap;
+        }
+
+        const refMap: Record<number, typeof referenceSnapshots[number]> = {};
+        for (const snap of referenceSnapshots) {
+          refMap[snap.playerId] = snap;
+        }
 
         for (const playerId of playerIds) {
-          // Snapshot actuel (le plus récent)
-          const currentSnapshot = await db
-            .select()
-            .from(playerSnapshots)
-            .where(sql`${playerSnapshots.playerId} = ${playerId}`)
-            .orderBy(desc(playerSnapshots.createdAt))
-            .limit(1);
-
-          // Snapshot de référence (le plus proche de la date de début)
-          const referenceSnapshot = await db
-            .select()
-            .from(playerSnapshots)
-            .where(
-              sql`${playerSnapshots.playerId} = ${playerId} AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}`
-            )
-            .orderBy(asc(playerSnapshots.createdAt))
-            .limit(1);
-
-          if (currentSnapshot.length > 0 && referenceSnapshot.length > 0) {
-            const current = currentSnapshot[0];
-            const reference = referenceSnapshot[0];
-
+          const current = currentMap[playerId];
+          const reference = refMap[playerId];
+          if (current && reference) {
             progressionMap[playerId] = {
               overall: current.overall - reference.overall,
               pace: current.pace - reference.pace,

@@ -8,6 +8,13 @@ export interface MflPlayer {
     age: number;
     positions: string[];
     nationalities: string[];
+    pace: number;
+    shooting: number;
+    passing: number;
+    dribbling: number;
+    defense: number;
+    physical: number;
+    goalkeeping: number;
   };
   ownedBy?: {
     walletAddress: string;
@@ -48,13 +55,14 @@ export interface PlayerRow {
   nationalities: string[];
   ownerName: string | null;
   progression?: MflProgression;
-  /** Individual stats from latest snapshot (for OVR calculation per position) */
+  /** Individual stats (absolute values from player metadata) */
   pace?: number;
   shooting?: number;
   passing?: number;
   dribbling?: number;
   defense?: number;
   physical?: number;
+  goalkeeping?: number;
 }
 
 /** Player history entry from MFL API */

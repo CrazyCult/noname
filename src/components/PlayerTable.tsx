@@ -16,64 +16,42 @@ import {
   ExternalLink, RotateCcw,
 } from 'lucide-react';
 import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
+import { countryToFlag } from '@/lib/country-codes';
 
 /* ════════════════════════════════════════════════════
-   OVR WEIGHTS – EN + FR aliases
+   POIDS OVR PAR POSITION (EN uniquement, c'est le format MFL API)
    ════════════════════════════════════════════════════ */
 
 type OvrWeights = { pas: number; sho: number; def: number; dri: number; pac: number; phy: number };
 
 const OVR_WEIGHTS: Record<string, OvrWeights> = {
-  // Strikers
   ST:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
-  BU:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
-  // Centre Forward / Wingers
   CF:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
   LW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
   RW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  AG:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  AD:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  // Attacking Midfielders
   CAM: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
-  AT:  { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
-  MOC: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
-  // Central Midfielders
   CM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  MC:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  // Wide Midfielders
   LM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
   RM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  MG:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  MD:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  // Defensive Midfielders
   CDM: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
-  MDC: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
-  // Full Backs
   LB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
   RB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  DG:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  DD:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  // Wing Backs
   LWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
   RWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  DLG: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  DLD: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  // Centre Backs
   CB:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
-  DC:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
-  // Goalkeepers (100% GK attr – can't calc without goalkeeping stat)
-  GK:  { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 },
-  G:   { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 },
 };
 
-const GK_POSITIONS = new Set(['GK', 'G']);
+const GK_POSITIONS = new Set(['GK']);
 
 function calcPositionOvr(
   pos: string,
-  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number },
+  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number; goalkeeping: number },
   penalty: number,
 ): number | null {
-  if (GK_POSITIONS.has(pos)) return null; // Can't calculate without goalkeeping attribute
+  if (GK_POSITIONS.has(pos)) {
+    // GK = 100% goalkeeping attribute
+    return Math.round(stats.goalkeeping - penalty);
+  }
   const w = OVR_WEIGHTS[pos];
   if (!w) return null;
   return Math.round(
@@ -87,18 +65,18 @@ function calcPositionOvr(
 }
 
 /* ════════════════════════════════════════════════════
-   ALL MFL POSITIONS (EN + FR aliases)
+   POSITIONS MFL (EN — format API)
    ════════════════════════════════════════════════════ */
 
 const ALL_POSITIONS = [
-  { group: 'GK',  items: ['GK', 'G'] },
-  { group: 'DEF', items: ['CB', 'DC', 'RB', 'DD', 'LB', 'DG', 'RWB', 'DLD', 'LWB', 'DLG'] },
-  { group: 'MID', items: ['CDM', 'MDC', 'CM', 'MC', 'CAM', 'AT', 'MOC', 'RM', 'MD', 'LM', 'MG'] },
-  { group: 'ATT', items: ['RW', 'AD', 'LW', 'AG', 'CF', 'ST', 'BU'] },
+  { group: 'Gardien', items: ['GK'] },
+  { group: 'Défenseurs', items: ['CB', 'RB', 'LB', 'RWB', 'LWB'] },
+  { group: 'Milieux', items: ['CDM', 'CM', 'CAM', 'RM', 'LM'] },
+  { group: 'Attaquants', items: ['RW', 'LW', 'CF', 'ST'] },
 ];
 
 /* ════════════════════════════════════════════════════
-   SUB-COMPONENTS
+   SOUS-COMPOSANTS
    ════════════════════════════════════════════════════ */
 
 interface ApiResponse {
@@ -106,19 +84,10 @@ interface ApiResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-/* ── Emoji flag from ISO 3166-1 alpha-2 code ── */
-function toFlagEmoji(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return String.fromCodePoint(
-    ...code.toUpperCase().split('').map(c => c.charCodeAt(0) + 127397)
-  );
-}
-
-function CountryFlag({ code }: { code: string }) {
-  if (!code) return null;
-  const emoji = toFlagEmoji(code);
-  if (!emoji) return <span className="text-[10px] text-zinc-500">{code}</span>;
-  return <span className="text-base leading-none" title={code}>{emoji}</span>;
+function CountryFlag({ name }: { name: string }) {
+  const { emoji, code } = countryToFlag(name);
+  if (!emoji) return <span className="text-[10px] text-zinc-500" title={name}>{name}</span>;
+  return <span className="text-base leading-none" title={`${name} (${code})`}>{emoji}</span>;
 }
 
 function ProgressionBadge({ value }: { value: number }) {
@@ -140,46 +109,21 @@ function ProgressionBadge({ value }: { value: number }) {
 }
 
 const POS_COLORS: Record<string, string> = {
-  // GK
-  GK: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  G:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  // CB
-  CB: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-  DC: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-  // RB / LB
-  RB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  DD: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  LB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  DG: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  // Wing Backs
+  GK:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  CB:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  RB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  LB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
   RWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-  DLD: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   LWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-  DLG: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-  // CDM
   CDM: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  MDC: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  // CM
-  CM: 'bg-green-500/20 text-green-300 border-green-500/30',
-  MC: 'bg-green-500/20 text-green-300 border-green-500/30',
-  // CAM
+  CM:  'bg-green-500/20 text-green-300 border-green-500/30',
   CAM: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  AT:  'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  MOC: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  // RM / LM
-  RM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  MD: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  LM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  MG: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  // RW / LW
-  RW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  AD: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  LW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  AG: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  // CF / ST
-  CF: 'bg-red-500/20 text-red-300 border-red-500/30',
-  ST: 'bg-red-500/20 text-red-300 border-red-500/30',
-  BU: 'bg-red-500/20 text-red-300 border-red-500/30',
+  RM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  LM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  RW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  LW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  CF:  'bg-red-500/20 text-red-300 border-red-500/30',
+  ST:  'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
 function PositionWithOvr({
@@ -211,13 +155,13 @@ function OverallBadge({ value }: { value: number }) {
 }
 
 /* ════════════════════════════════════════════════════
-   PROGRESSION KEYS
+   COLONNES PROGRESSION
    ════════════════════════════════════════════════════ */
 
 const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'OVR', key: 'overall' },
   { label: 'PAC', key: 'pace' },
-  { label: 'SHO', key: 'shooting' },
+  { label: 'TIR', key: 'shooting' },
   { label: 'PAS', key: 'passing' },
   { label: 'DRI', key: 'dribbling' },
   { label: 'DEF', key: 'defense' },
@@ -225,7 +169,7 @@ const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
 ];
 
 /* ════════════════════════════════════════════════════
-   TABLE COLUMNS
+   COLONNES DU TABLEAU
    ════════════════════════════════════════════════════ */
 
 const columnHelper = createColumnHelper<PlayerRow>();
@@ -240,10 +184,10 @@ const columns = [
 
   columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
     id: 'name',
-    header: 'Player',
+    header: 'Joueur',
     cell: (info) => {
       const row = info.row.original;
-      const hasStats = row.pace != null;
+      const hasStats = row.pace != null && row.shooting != null;
 
       const posOvrs = row.positions.map((pos, i) => {
         if (i === 0) return { pos, ovr: row.overall, isPrimary: true };
@@ -251,7 +195,8 @@ const columns = [
         const calculated = calcPositionOvr(pos, {
           pace: row.pace!, shooting: row.shooting!, passing: row.passing!,
           dribbling: row.dribbling!, defense: row.defense!, physical: row.physical!,
-        }, 1);
+          goalkeeping: row.goalkeeping ?? 0,
+        }, 1); // pénalité -1 pour secondaire/tertiaire
         return { pos, ovr: calculated, isPrimary: false };
       });
 
@@ -282,7 +227,7 @@ const columns = [
   }),
 
   columnHelper.accessor('age', {
-    header: 'Age',
+    header: 'Âge',
     cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
   }),
 
@@ -293,7 +238,7 @@ const columns = [
       if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
       return (
         <div className="flex items-center gap-1">
-          {nats.map((code) => <CountryFlag key={code} code={code} />)}
+          {nats.map((name) => <CountryFlag key={name} name={name} />)}
         </div>
       );
     },
@@ -301,10 +246,10 @@ const columns = [
   }),
 
   columnHelper.accessor('ownerName', {
-    header: 'Owner',
+    header: 'Propriétaire',
     cell: (info) => (
       <span className="text-zinc-400 text-sm truncate max-w-[140px] block">
-        {info.getValue() || <span className="text-zinc-600 italic">Free Agent</span>}
+        {info.getValue() || <span className="text-zinc-600 italic">Agent libre</span>}
       </span>
     ),
     enableSorting: false,
@@ -331,25 +276,25 @@ const columns = [
 ];
 
 /* ════════════════════════════════════════════════════
-   INTERVALS
+   INTERVALLES
    ════════════════════════════════════════════════════ */
 
 const INTERVALS: { label: string; value: ProgressionInterval }[] = [
   { label: '24H', value: '24H' },
-  { label: 'Week', value: 'WEEK' },
-  { label: 'Month', value: 'MONTH' },
-  { label: 'Season', value: 'CURRENT_SEASON' },
-  { label: 'All Time', value: 'ALL' },
+  { label: 'Semaine', value: 'WEEK' },
+  { label: 'Mois', value: 'MONTH' },
+  { label: 'Saison', value: 'CURRENT_SEASON' },
+  { label: 'Total', value: 'ALL' },
 ];
 
 /* ════════════════════════════════════════════════════
-   SMALL FILTER INPUT
+   INPUT FILTRE
    ════════════════════════════════════════════════════ */
 
 function FilterInput({
-  value, onChange, placeholder, className = '',
+  value, onChange, placeholder,
 }: {
-  value: string; onChange: (v: string) => void; placeholder: string; className?: string;
+  value: string; onChange: (v: string) => void; placeholder: string;
 }) {
   return (
     <input
@@ -357,13 +302,13 @@ function FilterInput({
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors ${className}`}
+      className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
     />
   );
 }
 
 /* ════════════════════════════════════════════════════
-   MAIN COMPONENT
+   COMPOSANT PRINCIPAL
    ════════════════════════════════════════════════════ */
 
 export default function PlayerTable() {
@@ -373,7 +318,7 @@ export default function PlayerTable() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  // Filters
+  // Filtres
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [position, setPosition] = useState('');
@@ -387,7 +332,7 @@ export default function PlayerTable() {
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
 
-  const hasFilters = search || position || ageMin || ageMax || ovrMin || ovrMax || progMin || progMax;
+  const hasFilters = !!(search || position || ageMin || ageMax || ovrMin || ovrMax || progMin || progMax);
 
   const resetFilters = () => {
     setSearch('');
@@ -401,7 +346,7 @@ export default function PlayerTable() {
     setSorting([{ id: 'overall', desc: true }]);
   };
 
-  // Debounce search
+  // Debounce recherche
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
@@ -431,7 +376,7 @@ export default function PlayerTable() {
       setTotalPages(json.pagination.totalPages);
       setTotal(json.pagination.total);
     } catch (err) {
-      console.error('Failed to fetch players:', err);
+      console.error('Erreur chargement joueurs:', err);
     } finally {
       setLoading(false);
     }
@@ -451,15 +396,15 @@ export default function PlayerTable() {
 
   return (
     <div className="space-y-4">
-      {/* ── FILTERS ── */}
+      {/* ── FILTRES ── */}
       <div className="glass-card p-4 space-y-3">
-        {/* Row 1: Search + Position + Interval */}
+        {/* Ligne 1 : Recherche + Position + Intervalle */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
             <input
               type="text"
-              placeholder="Search players..."
+              placeholder="Rechercher un joueur..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/25 transition-colors"
@@ -471,7 +416,7 @@ export default function PlayerTable() {
             onChange={(e) => setPosition(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors [&>option]:bg-zinc-900 [&>optgroup]:bg-zinc-900"
           >
-            <option value="">All Positions</option>
+            <option value="">Tous les postes</option>
             {ALL_POSITIONS.map((group) => (
               <optgroup key={group.group} label={group.group}>
                 {group.items.map((pos) => (
@@ -498,11 +443,10 @@ export default function PlayerTable() {
           </div>
         </div>
 
-        {/* Row 2: Range filters + Reset + Count */}
+        {/* Ligne 2 : Filtres plage + Reset + Total */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Age range */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Age</span>
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Âge</span>
             <FilterInput value={ageMin} onChange={setAgeMin} placeholder="Min" />
             <span className="text-zinc-600 text-xs">-</span>
             <FilterInput value={ageMax} onChange={setAgeMax} placeholder="Max" />
@@ -510,7 +454,6 @@ export default function PlayerTable() {
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* OVR range */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">OVR</span>
             <FilterInput value={ovrMin} onChange={setOvrMin} placeholder="Min" />
@@ -520,7 +463,6 @@ export default function PlayerTable() {
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Progression range */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog OVR</span>
             <FilterInput value={progMin} onChange={setProgMin} placeholder="Min" />
@@ -530,25 +472,23 @@ export default function PlayerTable() {
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Reset */}
-          {hasFilters && (
-            <button
-              onClick={resetFilters}
-              className="glass-button px-2.5 py-1.5 text-[11px] text-zinc-400 hover:text-orange-400 inline-flex items-center gap-1"
-            >
-              <RotateCcw size={12} />
-              Reset
-            </button>
-          )}
+          {/* Bouton Reset — toujours visible */}
+          <button
+            onClick={resetFilters}
+            disabled={!hasFilters}
+            className="glass-button px-2.5 py-1.5 text-[11px] inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-400 hover:text-orange-400"
+          >
+            <RotateCcw size={12} />
+            Réinitialiser
+          </button>
 
-          {/* Total */}
           <div className="ml-auto text-zinc-500 text-sm">
-            <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> players
+            <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> joueurs
           </div>
         </div>
       </div>
 
-      {/* ── TABLE ── */}
+      {/* ── TABLEAU ── */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -590,13 +530,13 @@ export default function PlayerTable() {
                   <motion.tr key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
                       <Loader2 className="animate-spin mx-auto mb-2 text-orange-500" size={24} />
-                      <span className="text-sm">Loading players...</span>
+                      <span className="text-sm">Chargement des joueurs...</span>
                     </td>
                   </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <td colSpan={columns.length} className="text-center py-20 text-zinc-500 text-sm">
-                      No players found.
+                      Aucun joueur trouvé.
                     </td>
                   </motion.tr>
                 ) : (

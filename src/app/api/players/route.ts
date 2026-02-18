@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       conditions.push(sql`${players.age} <= ${maxAge}`);
     }
 
-    // Progression min/max filter (subquery on progressions table)
+    // Progression OVR min/max filter
     if (progMinStr !== '') {
       const progMin = Number(progMinStr);
       conditions.push(
@@ -131,40 +131,9 @@ export async function GET(request: NextRequest) {
       passing: number; dribbling: number; defense: number; physical: number;
     }> = {};
 
-    // ── Latest snapshot stats (for OVR calculation per position) ──
-    const statsMap: Record<number, {
-      pace: number; shooting: number; passing: number;
-      dribbling: number; defense: number; physical: number;
-    }> = {};
-
     if (playerIds.length > 0) {
       const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
 
-      // Fetch latest snapshots for individual stats
-      const latestSnapshots = await db
-        .select()
-        .from(playerSnapshots)
-        .where(
-          sql`${playerSnapshots.playerId} IN (${idsJoin})
-            AND ${playerSnapshots.id} IN (
-              SELECT MAX(id) FROM ${playerSnapshots}
-              WHERE ${playerSnapshots.playerId} IN (${idsJoin})
-              GROUP BY ${playerSnapshots.playerId}
-            )`
-        );
-
-      for (const snap of latestSnapshots) {
-        statsMap[snap.playerId] = {
-          pace: snap.pace,
-          shooting: snap.shooting,
-          passing: snap.passing,
-          dribbling: snap.dribbling,
-          defense: snap.defense,
-          physical: snap.physical,
-        };
-      }
-
-      // Fetch progression data
       if (interval === 'ALL') {
         const progRows = await db
           .select()
@@ -239,10 +208,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build response
+    // Build response — stats come from the players table directly (absolute values)
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
-      const stats = statsMap[p.id];
       return {
         id: p.id,
         firstName: p.firstName,
@@ -253,12 +221,13 @@ export async function GET(request: NextRequest) {
         nationalities: (p.nationalities as string[]) ?? [],
         ownerName: p.ownerName,
         progression: prog || undefined,
-        pace: stats?.pace,
-        shooting: stats?.shooting,
-        passing: stats?.passing,
-        dribbling: stats?.dribbling,
-        defense: stats?.defense,
-        physical: stats?.physical,
+        pace: p.pace ?? undefined,
+        shooting: p.shooting ?? undefined,
+        passing: p.passing ?? undefined,
+        dribbling: p.dribbling ?? undefined,
+        defense: p.defense ?? undefined,
+        physical: p.physical ?? undefined,
+        goalkeeping: p.goalkeeping ?? undefined,
       };
     });
 

@@ -45,12 +45,12 @@ const GK_POSITIONS = new Set(['GK']);
 
 function calcPositionOvr(
   pos: string,
-  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number; goalkeeping: number },
+  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number },
   penalty: number,
 ): number | null {
   if (GK_POSITIONS.has(pos)) {
-    // GK = 100% goalkeeping attribute
-    return Math.round(stats.goalkeeping - penalty);
+    // GK needs goalkeeping stat which snapshots don't store
+    return null;
   }
   const w = OVR_WEIGHTS[pos];
   if (!w) return null;
@@ -195,7 +195,6 @@ const columns = [
         const calculated = calcPositionOvr(pos, {
           pace: row.pace!, shooting: row.shooting!, passing: row.passing!,
           dribbling: row.dribbling!, defense: row.defense!, physical: row.physical!,
-          goalkeeping: row.goalkeeping ?? 0,
         }, 1); // pénalité -1 pour secondaire/tertiaire
         return { pos, ovr: calculated, isPrimary: false };
       });

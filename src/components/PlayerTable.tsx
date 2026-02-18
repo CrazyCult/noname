@@ -13,30 +13,89 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Search, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
+
+/* ════════════════════════════════════════════════════
+   OVR WEIGHTS PER POSITION
+   ════════════════════════════════════════════════════ */
+
+type OvrWeights = { pas: number; sho: number; def: number; dri: number; pac: number; phy: number };
+
+const OVR_WEIGHTS: Record<string, OvrWeights> = {
+  ST:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
+  CF:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  LW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  RW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  CAM: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
+  CM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  LM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  RM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  CDM: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
+  LB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  RB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  LWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  RWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  CB:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
+  GK:  { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 }, // 100% GK attr
+};
+
+function calcPositionOvr(
+  pos: string,
+  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number },
+  penalty: number,
+): number | null {
+  if (pos === 'GK') return null; // Can't calculate without goalkeeping attribute
+  const w = OVR_WEIGHTS[pos];
+  if (!w) return null;
+  const p = penalty;
+  return Math.round(
+    (stats.passing - p) * w.pas +
+    (stats.shooting - p) * w.sho +
+    (stats.defense - p) * w.def +
+    (stats.dribbling - p) * w.dri +
+    (stats.pace - p) * w.pac +
+    (stats.physical - p) * w.phy
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   ALL MFL POSITIONS
+   ════════════════════════════════════════════════════ */
+
+const ALL_POSITIONS = [
+  { group: 'GK', items: ['GK'] },
+  { group: 'DEF', items: ['CB', 'RB', 'LB', 'RWB', 'LWB'] },
+  { group: 'MID', items: ['CDM', 'CM', 'CAM', 'RM', 'LM'] },
+  { group: 'ATT', items: ['RW', 'LW', 'CF', 'ST'] },
+];
+
+const FLAT_POSITIONS = ALL_POSITIONS.flatMap((g) => g.items);
+
+/* ════════════════════════════════════════════════════
+   SUB-COMPONENTS
+   ════════════════════════════════════════════════════ */
 
 interface ApiResponse {
   data: PlayerRow[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-/* ── Sub-components ── */
-
 function ProgressionBadge({ value }: { value: number }) {
   if (value > 0) return (
-    <span className="inline-flex items-center gap-0.5 text-emerald-400 text-xs font-medium">
-      <TrendingUp size={12} />+{value}
+    <span className="inline-flex items-center gap-0.5 text-emerald-400 text-[11px] font-semibold">
+      <TrendingUp size={11} />+{value}
     </span>
   );
   if (value < 0) return (
-    <span className="inline-flex items-center gap-0.5 text-red-400 text-xs font-medium">
-      <TrendingDown size={12} />{value}
+    <span className="inline-flex items-center gap-0.5 text-red-400 text-[11px] font-semibold">
+      <TrendingDown size={11} />{value}
     </span>
   );
   return (
-    <span className="inline-flex items-center text-zinc-600 text-xs">
-      <Minus size={12} />
+    <span className="inline-flex items-center text-zinc-600 text-[11px]">
+      <Minus size={11} />
     </span>
   );
 }
@@ -46,6 +105,8 @@ const POS_COLORS: Record<string, string> = {
   CB:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
   RB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
   LB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  RWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  LWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   CDM: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
   CM:  'bg-green-500/20 text-green-300 border-green-500/30',
   CAM: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -57,10 +118,24 @@ const POS_COLORS: Record<string, string> = {
   ST:  'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
-function PositionBadge({ position }: { position: string }) {
+function PositionWithOvr({
+  position,
+  ovr,
+  isPrimary,
+}: {
+  position: string;
+  ovr: number | null;
+  isPrimary: boolean;
+}) {
+  const colors = POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30'}`}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors} ${!isPrimary ? 'opacity-70' : ''}`}>
       {position}
+      {ovr !== null && (
+        <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>
+          {ovr}
+        </span>
+      )}
     </span>
   );
 }
@@ -72,10 +147,29 @@ function OverallBadge({ value }: { value: number }) {
   else if (value >= 70) color = 'text-emerald-400';
   else if (value >= 60) color = 'text-blue-400';
   else if (value >= 50) color = 'text-zinc-300';
-  return <span className={`font-bold text-lg ${color}`}>{value}</span>;
+  return <span className={`font-bold text-base ${color}`}>{value}</span>;
 }
 
-/* ── Progression attributes ── */
+function CountryFlag({ code }: { code: string }) {
+  const [error, setError] = useState(false);
+  if (error || !code) return <span className="text-[10px] text-zinc-500">{code}</span>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`}
+      alt={code}
+      title={code}
+      width={20}
+      height={15}
+      className="inline-block rounded-sm"
+      onError={() => setError(true)}
+    />
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   PROGRESSION KEYS
+   ════════════════════════════════════════════════════ */
 
 const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'OVR', key: 'overall' },
@@ -87,64 +181,105 @@ const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'PHY', key: 'physical' },
 ];
 
-/* ── Table columns ── */
+/* ════════════════════════════════════════════════════
+   TABLE COLUMNS
+   ════════════════════════════════════════════════════ */
 
 const columnHelper = createColumnHelper<PlayerRow>();
 
 const columns = [
   columnHelper.accessor('id', {
     header: 'ID',
-    cell: (info) => <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>,
+    cell: (info) => (
+      <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>
+    ),
   }),
+
   columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
     id: 'name',
     header: 'Player',
     cell: (info) => {
       const row = info.row.original;
+      const hasStats = row.pace != null;
+
+      // Calculate OVR per position
+      const posOvrs = row.positions.map((pos, i) => {
+        if (i === 0) return { pos, ovr: row.overall, isPrimary: true };
+        if (!hasStats) return { pos, ovr: null as number | null, isPrimary: false };
+        const calculated = calcPositionOvr(pos, {
+          pace: row.pace!, shooting: row.shooting!, passing: row.passing!,
+          dribbling: row.dribbling!, defense: row.defense!, physical: row.physical!,
+        }, 1); // -1 penalty for secondary/tertiary
+        return { pos, ovr: calculated, isPrimary: false };
+      });
+
       return (
-        <div>
-          <div className="font-semibold text-white">{row.firstName} {row.lastName}</div>
-          <div className="flex gap-1 mt-0.5">
-            {row.positions.map((pos) => <PositionBadge key={pos} position={pos} />)}
+        <div className="min-w-[180px]">
+          <a
+            href={`https://app.playmfl.com/fr/players/${row.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-white hover:text-orange-400 transition-colors inline-flex items-center gap-1 group"
+          >
+            {row.firstName} {row.lastName}
+            <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+          </a>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {posOvrs.map(({ pos, ovr, isPrimary }) => (
+              <PositionWithOvr key={pos} position={pos} ovr={ovr} isPrimary={isPrimary} />
+            ))}
           </div>
         </div>
       );
     },
   }),
+
   columnHelper.accessor('overall', {
     header: 'OVR',
     cell: (info) => <OverallBadge value={info.getValue()} />,
   }),
+
   columnHelper.accessor('age', {
     header: 'Age',
     cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
   }),
+
   columnHelper.accessor('nationalities', {
     header: 'Nat',
-    cell: (info) => (
-      <span className="text-zinc-400 text-sm">{info.getValue()?.join(', ') || '-'}</span>
-    ),
+    cell: (info) => {
+      const nats = info.getValue();
+      if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
+      return (
+        <div className="flex items-center gap-1">
+          {nats.map((code) => (
+            <CountryFlag key={code} code={code} />
+          ))}
+        </div>
+      );
+    },
     enableSorting: false,
   }),
+
   columnHelper.accessor('ownerName', {
     header: 'Owner',
     cell: (info) => (
-      <span className="text-zinc-400 text-sm truncate max-w-[150px] block">
+      <span className="text-zinc-400 text-sm truncate max-w-[140px] block">
         {info.getValue() || <span className="text-zinc-600 italic">Free Agent</span>}
       </span>
     ),
     enableSorting: false,
   }),
+
   columnHelper.accessor('progression', {
     header: 'Progression',
     cell: (info) => {
       const prog = info.getValue();
       if (!prog) return <span className="text-zinc-600 text-xs">N/A</span>;
       return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {PROG_KEYS.map(({ label, key }) => (
-            <div key={key} className="flex flex-col items-center">
-              <span className="text-[9px] text-zinc-500 uppercase">{label}</span>
+            <div key={key} className="flex flex-col items-center min-w-[28px]">
+              <span className="text-[8px] text-zinc-600 uppercase leading-none mb-0.5">{label}</span>
               <ProgressionBadge value={prog[key]} />
             </div>
           ))}
@@ -155,7 +290,9 @@ const columns = [
   }),
 ];
 
-/* ── Intervals ── */
+/* ════════════════════════════════════════════════════
+   INTERVALS
+   ════════════════════════════════════════════════════ */
 
 const INTERVALS: { label: string; value: ProgressionInterval }[] = [
   { label: '24H', value: '24H' },
@@ -165,9 +302,9 @@ const INTERVALS: { label: string; value: ProgressionInterval }[] = [
   { label: 'All Time', value: 'ALL' },
 ];
 
-const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'CF', 'ST'];
-
-/* ── Main component ── */
+/* ════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════════════ */
 
 export default function PlayerTable() {
   const [data, setData] = useState<PlayerRow[]>([]);
@@ -175,10 +312,18 @@ export default function PlayerTable() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+
+  // Filters
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [position, setPosition] = useState('');
   const [interval, setInterval] = useState<ProgressionInterval>('ALL');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
+  const [ovrMin, setOvrMin] = useState('');
+  const [ovrMax, setOvrMax] = useState('');
+  const [progFilter, setProgFilter] = useState<'' | 'positive' | 'negative'>('');
+
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
 
   // Debounce search
@@ -192,9 +337,16 @@ export default function PlayerTable() {
     try {
       const sortBy = sorting[0]?.id || 'overall';
       const sortOrder = sorting[0]?.desc ? 'desc' : 'asc';
-      const params = new URLSearchParams({ page: String(page), limit: '50', sortBy, sortOrder, interval });
+      const params = new URLSearchParams({
+        page: String(page), limit: '50', sortBy, sortOrder, interval,
+      });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (position) params.set('position', position);
+      if (ageMin) params.set('ageMin', ageMin);
+      if (ageMax) params.set('ageMax', ageMax);
+      if (ovrMin) params.set('ovrMin', ovrMin);
+      if (ovrMax) params.set('ovrMax', ovrMax);
+      if (progFilter) params.set('progFilter', progFilter);
 
       const res = await fetch(`/api/players?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -207,10 +359,10 @@ export default function PlayerTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, sorting, debouncedSearch, position, interval]);
+  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progFilter]);
 
   const table = useReactTable({
     data,
@@ -223,9 +375,10 @@ export default function PlayerTable() {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="glass-card p-4">
-        <div className="flex flex-wrap items-center gap-4">
+      {/* ── FILTERS ── */}
+      <div className="glass-card p-4 space-y-3">
+        {/* Row 1: Search + Position + Interval */}
+        <div className="flex flex-wrap items-center gap-3">
           {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
@@ -242,21 +395,27 @@ export default function PlayerTable() {
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors"
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors [&>option]:bg-zinc-900 [&>optgroup]:bg-zinc-900"
           >
             <option value="">All Positions</option>
-            {POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
+            {ALL_POSITIONS.map((group) => (
+              <optgroup key={group.group} label={group.group}>
+                {group.items.map((pos) => (
+                  <option key={pos} value={pos}>{pos}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
 
-          {/* Interval Tabs */}
-          <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
+          {/* Interval */}
+          <div className="flex gap-0.5 bg-white/5 rounded-lg p-1 border border-white/10">
             {INTERVALS.map((int) => (
               <button
                 key={int.value}
                 onClick={() => setInterval(int.value)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
                   interval === int.value
-                    ? 'bg-orange-500/30 text-orange-300 border border-orange-500/30'
+                    ? 'bg-orange-500/25 text-orange-300 shadow-sm'
                     : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
@@ -264,25 +423,100 @@ export default function PlayerTable() {
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Total */}
-          <div className="text-zinc-500 text-sm">
-            <span className="text-orange-400 font-medium">{total.toLocaleString()}</span> players
+        {/* Row 2: Age + OVR + Progression filter + Count */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Age range */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Age</span>
+            <input
+              type="number"
+              placeholder="Min"
+              value={ageMin}
+              onChange={(e) => setAgeMin(e.target.value)}
+              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+            />
+            <span className="text-zinc-600 text-xs">-</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={ageMax}
+              onChange={(e) => setAgeMax(e.target.value)}
+              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+            />
+          </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* OVR range */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">OVR</span>
+            <input
+              type="number"
+              placeholder="Min"
+              value={ovrMin}
+              onChange={(e) => setOvrMin(e.target.value)}
+              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+            />
+            <span className="text-zinc-600 text-xs">-</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={ovrMax}
+              onChange={(e) => setOvrMax(e.target.value)}
+              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+            />
+          </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Progression filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog</span>
+            <div className="flex gap-0.5 bg-white/5 rounded-md p-0.5 border border-white/10">
+              {([
+                { label: 'All', value: '' as const },
+                { label: '+', value: 'positive' as const },
+                { label: '-', value: 'negative' as const },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setProgFilter(opt.value)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                    progFilter === opt.value
+                      ? opt.value === 'positive'
+                        ? 'bg-emerald-500/25 text-emerald-300'
+                        : opt.value === 'negative'
+                        ? 'bg-red-500/25 text-red-300'
+                        : 'bg-white/10 text-zinc-300'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Spacer + total */}
+          <div className="ml-auto text-zinc-500 text-sm">
+            <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> players
           </div>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ── TABLE ── */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="border-b border-white/10">
+                <tr key={headerGroup.id} className="border-b border-white/10 bg-white/[0.02]">
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider"
+                      className="text-left px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider whitespace-nowrap"
                     >
                       {header.isPlaceholder ? null : (
                         <div
@@ -296,10 +530,10 @@ export default function PlayerTable() {
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {header.column.getCanSort() && (
                             header.column.getIsSorted() === 'asc'
-                              ? <ArrowUp size={14} className="text-orange-400" />
+                              ? <ArrowUp size={13} className="text-orange-400" />
                               : header.column.getIsSorted() === 'desc'
-                              ? <ArrowDown size={14} className="text-orange-400" />
-                              : <ArrowUpDown size={14} className="text-zinc-600" />
+                              ? <ArrowDown size={13} className="text-orange-400" />
+                              : <ArrowUpDown size={13} className="text-zinc-700" />
                           )}
                         </div>
                       )}
@@ -314,12 +548,12 @@ export default function PlayerTable() {
                   <motion.tr key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
                       <Loader2 className="animate-spin mx-auto mb-2 text-orange-500" size={24} />
-                      Loading players...
+                      <span className="text-sm">Loading players...</span>
                     </td>
                   </motion.tr>
                 ) : data.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
+                    <td colSpan={columns.length} className="text-center py-20 text-zinc-500 text-sm">
                       No players found.
                     </td>
                   </motion.tr>
@@ -327,14 +561,14 @@ export default function PlayerTable() {
                   table.getRowModel().rows.map((row, index) => (
                     <motion.tr
                       key={row.original.id}
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ delay: index * 0.02 }}
-                      className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
+                      exit={{ opacity: 0 }}
+                      transition={{ delay: index * 0.015, duration: 0.2 }}
+                      className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors"
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-4 py-3">
+                        <td key={cell.id} className="px-4 py-2.5">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -347,10 +581,10 @@ export default function PlayerTable() {
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-2">
+      {/* ── PAGINATION ── */}
+      <div className="flex items-center justify-between px-1">
         <div className="text-sm text-zinc-500">
-          Page <span className="text-orange-400">{page}</span> / {totalPages}
+          Page <span className="text-orange-400 font-medium">{page}</span> / {totalPages}
         </div>
         <div className="flex items-center gap-2">
           <button

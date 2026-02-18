@@ -48,6 +48,13 @@ export interface PlayerRow {
   nationalities: string[];
   ownerName: string | null;
   progression?: MflProgression;
+  /** Individual stats from latest snapshot (for OVR calculation per position) */
+  pace?: number;
+  shooting?: number;
+  passing?: number;
+  dribbling?: number;
+  defense?: number;
+  physical?: number;
 }
 
 /** Player history entry from MFL API */

@@ -64,32 +64,42 @@ export interface PlayerLiveData {
 }
 
 /**
- * Fetch multiple players by IDs in parallel.
+ * Fetch multiple players by IDs in batches of 10 to avoid rate-limiting.
  * Returns a map of player ID → stats + live contract/listing data.
  */
 export async function fetchPlayersStats(
   ids: number[]
 ): Promise<Record<number, PlayerLiveData>> {
-  const results = await Promise.allSettled(ids.map(fetchPlayerById));
   const statsMap: Record<number, PlayerLiveData> = {};
+  const BATCH_SIZE = 10;
 
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      const { player: p, listing } = result.value;
-      const rs = p.activeContract?.revenueShare ?? 0;
-      const totalLocked = p.activeContract?.totalRevenueShareLocked ?? 0;
-      statsMap[p.id] = {
-        pace: p.metadata.pace ?? 0,
-        shooting: p.metadata.shooting ?? 0,
-        passing: p.metadata.passing ?? 0,
-        dribbling: p.metadata.dribbling ?? 0,
-        defense: p.metadata.defense ?? 0,
-        physical: p.metadata.physical ?? 0,
-        goalkeeping: p.metadata.goalkeeping ?? 0,
-        revenueShare: rs,
-        clause: totalLocked - rs,
-        listingPrice: listing?.status === 'AVAILABLE' ? listing.price : null,
-      };
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map(fetchPlayerById));
+
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        const { player: p, listing } = result.value;
+        const rs = p.activeContract?.revenueShare ?? 0;
+        const totalLocked = p.activeContract?.totalRevenueShareLocked ?? 0;
+        statsMap[p.id] = {
+          pace: p.metadata.pace ?? 0,
+          shooting: p.metadata.shooting ?? 0,
+          passing: p.metadata.passing ?? 0,
+          dribbling: p.metadata.dribbling ?? 0,
+          defense: p.metadata.defense ?? 0,
+          physical: p.metadata.physical ?? 0,
+          goalkeeping: p.metadata.goalkeeping ?? 0,
+          revenueShare: rs,
+          clause: totalLocked - rs,
+          listingPrice: listing?.status === 'AVAILABLE' ? listing.price : null,
+        };
+      }
+    }
+
+    // Small delay between batches to avoid rate-limiting
+    if (i + BATCH_SIZE < ids.length) {
+      await new Promise((r) => setTimeout(r, 100));
     }
   }
 

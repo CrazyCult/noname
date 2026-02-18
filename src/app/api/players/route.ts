@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { players, progressions, playerSnapshots } from '@/db/schema';
-import { desc, asc, sql } from 'drizzle-orm';
+import { desc, asc, sql, eq } from 'drizzle-orm';
 import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
 import { fetchPlayersStats } from '@/lib/mfl-api';
 import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
@@ -112,6 +112,8 @@ export async function GET(request: NextRequest) {
         case 'age': return players.age;
         case 'ownerName': return players.ownerName;
         case 'revenueShare': return players.revenueShare;
+        case 'clause': return players.clause;
+        case 'listingPrice': return players.listingPrice;
         default: return players.overall;
       }
     })();
@@ -214,6 +216,22 @@ export async function GET(request: NextRequest) {
 
     // ── Fetch absolute stats from MFL API for OVR calculation ──
     const statsMap = playerIds.length > 0 ? await fetchPlayersStats(playerIds) : {};
+
+    // ── Write-back: persist live values to DB for global sorting ──
+    const liveEntries = Object.entries(statsMap);
+    if (liveEntries.length > 0) {
+      Promise.allSettled(
+        liveEntries.map(([idStr, live]) =>
+          db.update(players)
+            .set({
+              revenueShare: live.revenueShare,
+              clause: live.clause,
+              listingPrice: live.listingPrice,
+            })
+            .where(eq(players.id, Number(idStr)))
+        )
+      ).catch(() => {});
+    }
 
     // Build response with pre-computed position OVRs
     const data: PlayerRow[] = playerRows.map((p) => {

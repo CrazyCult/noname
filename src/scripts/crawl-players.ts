@@ -44,7 +44,7 @@ async function crawlPlayers() {
       ownerAddress: player.ownedBy?.walletAddress ?? null,
       ownerName: player.ownedBy?.name ?? null,
       revenueShare: player.activeContract?.revenueShare ?? 0,
-      offerStatus: player.offerStatus ?? 0,
+      clause: (player.activeContract?.totalRevenueShareLocked ?? 0) - (player.activeContract?.revenueShare ?? 0),
     }));
 
     await db
@@ -61,7 +61,7 @@ async function crawlPlayers() {
           ownerAddress: sql`VALUES(${players.ownerAddress})`,
           ownerName: sql`VALUES(${players.ownerName})`,
           revenueShare: sql`VALUES(${players.revenueShare})`,
-          offerStatus: sql`VALUES(${players.offerStatus})`,
+          clause: sql`VALUES(${players.clause})`,
         },
       });
 

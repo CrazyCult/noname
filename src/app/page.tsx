@@ -1,4 +1,33 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import PlayerTable from '@/components/PlayerTable';
+
+function LastUpdate() {
+  const [lastSnapshot, setLastSnapshot] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then((r) => r.json())
+      .then((data) => setLastSnapshot(data.lastSnapshot))
+      .catch(() => {});
+  }, []);
+
+  if (!lastSnapshot) return <span className="text-xs text-zinc-600">Data refreshed 2x/day</span>;
+
+  const date = new Date(lastSnapshot);
+  const formatted = date.toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  return (
+    <div className="text-right">
+      <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Last update</div>
+      <div className="text-xs text-zinc-400">{formatted}</div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -12,9 +41,7 @@ export default function Home() {
             </h1>
             <p className="text-xs text-zinc-500 mt-0.5">Player Progression Dashboard</p>
           </div>
-          <div className="text-xs text-zinc-600">
-            Data refreshed 2x/day
-          </div>
+          <LastUpdate />
         </div>
       </header>
 

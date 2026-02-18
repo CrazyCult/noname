@@ -13,65 +13,89 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Search, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, Loader2,
-  ExternalLink,
+  ExternalLink, RotateCcw,
 } from 'lucide-react';
 import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
 
 /* ════════════════════════════════════════════════════
-   OVR WEIGHTS PER POSITION
+   OVR WEIGHTS – EN + FR aliases
    ════════════════════════════════════════════════════ */
 
 type OvrWeights = { pas: number; sho: number; def: number; dri: number; pac: number; phy: number };
 
 const OVR_WEIGHTS: Record<string, OvrWeights> = {
+  // Strikers
   ST:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
+  BU:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
+  // Centre Forward / Wingers
   CF:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
   LW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
   RW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  AG:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  AD:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
+  // Attacking Midfielders
   CAM: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
+  AT:  { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
+  MOC: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
+  // Central Midfielders
   CM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  MC:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  // Wide Midfielders
   LM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
   RM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  MG:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  MD:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
+  // Defensive Midfielders
   CDM: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
+  MDC: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
+  // Full Backs
   LB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
   RB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  DG:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  DD:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  // Wing Backs
   LWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
   RWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  DLG: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  DLD: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
+  // Centre Backs
   CB:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
-  GK:  { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 }, // 100% GK attr
+  DC:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
+  // Goalkeepers (100% GK attr – can't calc without goalkeeping stat)
+  GK:  { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 },
+  G:   { pas: 0.00, sho: 0.00, def: 0.00, dri: 0.00, pac: 0.00, phy: 0.00 },
 };
+
+const GK_POSITIONS = new Set(['GK', 'G']);
 
 function calcPositionOvr(
   pos: string,
   stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number },
   penalty: number,
 ): number | null {
-  if (pos === 'GK') return null; // Can't calculate without goalkeeping attribute
+  if (GK_POSITIONS.has(pos)) return null; // Can't calculate without goalkeeping attribute
   const w = OVR_WEIGHTS[pos];
   if (!w) return null;
-  const p = penalty;
   return Math.round(
-    (stats.passing - p) * w.pas +
-    (stats.shooting - p) * w.sho +
-    (stats.defense - p) * w.def +
-    (stats.dribbling - p) * w.dri +
-    (stats.pace - p) * w.pac +
-    (stats.physical - p) * w.phy
+    (stats.passing - penalty) * w.pas +
+    (stats.shooting - penalty) * w.sho +
+    (stats.defense - penalty) * w.def +
+    (stats.dribbling - penalty) * w.dri +
+    (stats.pace - penalty) * w.pac +
+    (stats.physical - penalty) * w.phy
   );
 }
 
 /* ════════════════════════════════════════════════════
-   ALL MFL POSITIONS
+   ALL MFL POSITIONS (EN + FR aliases)
    ════════════════════════════════════════════════════ */
 
 const ALL_POSITIONS = [
-  { group: 'GK', items: ['GK'] },
-  { group: 'DEF', items: ['CB', 'RB', 'LB', 'RWB', 'LWB'] },
-  { group: 'MID', items: ['CDM', 'CM', 'CAM', 'RM', 'LM'] },
-  { group: 'ATT', items: ['RW', 'LW', 'CF', 'ST'] },
+  { group: 'GK',  items: ['GK', 'G'] },
+  { group: 'DEF', items: ['CB', 'DC', 'RB', 'DD', 'LB', 'DG', 'RWB', 'DLD', 'LWB', 'DLG'] },
+  { group: 'MID', items: ['CDM', 'MDC', 'CM', 'MC', 'CAM', 'AT', 'MOC', 'RM', 'MD', 'LM', 'MG'] },
+  { group: 'ATT', items: ['RW', 'AD', 'LW', 'AG', 'CF', 'ST', 'BU'] },
 ];
-
-const FLAT_POSITIONS = ALL_POSITIONS.flatMap((g) => g.items);
 
 /* ════════════════════════════════════════════════════
    SUB-COMPONENTS
@@ -80,6 +104,21 @@ const FLAT_POSITIONS = ALL_POSITIONS.flatMap((g) => g.items);
 interface ApiResponse {
   data: PlayerRow[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+/* ── Emoji flag from ISO 3166-1 alpha-2 code ── */
+function toFlagEmoji(code: string): string {
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(
+    ...code.toUpperCase().split('').map(c => c.charCodeAt(0) + 127397)
+  );
+}
+
+function CountryFlag({ code }: { code: string }) {
+  if (!code) return null;
+  const emoji = toFlagEmoji(code);
+  if (!emoji) return <span className="text-[10px] text-zinc-500">{code}</span>;
+  return <span className="text-base leading-none" title={code}>{emoji}</span>;
 }
 
 function ProgressionBadge({ value }: { value: number }) {
@@ -101,35 +140,56 @@ function ProgressionBadge({ value }: { value: number }) {
 }
 
 const POS_COLORS: Record<string, string> = {
-  GK:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  CB:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-  RB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  LB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  // GK
+  GK: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  G:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  // CB
+  CB: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  DC: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  // RB / LB
+  RB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  DD: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  LB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  DG: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  // Wing Backs
   RWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  DLD: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   LWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  DLG: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  // CDM
   CDM: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  CM:  'bg-green-500/20 text-green-300 border-green-500/30',
+  MDC: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+  // CM
+  CM: 'bg-green-500/20 text-green-300 border-green-500/30',
+  MC: 'bg-green-500/20 text-green-300 border-green-500/30',
+  // CAM
   CAM: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  RM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  LM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  RW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  LW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  CF:  'bg-red-500/20 text-red-300 border-red-500/30',
-  ST:  'bg-red-500/20 text-red-300 border-red-500/30',
+  AT:  'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  MOC: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  // RM / LM
+  RM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  MD: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  LM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  MG: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  // RW / LW
+  RW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  AD: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  LW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  AG: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  // CF / ST
+  CF: 'bg-red-500/20 text-red-300 border-red-500/30',
+  ST: 'bg-red-500/20 text-red-300 border-red-500/30',
+  BU: 'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
 function PositionWithOvr({
-  position,
-  ovr,
-  isPrimary,
+  position, ovr, isPrimary,
 }: {
-  position: string;
-  ovr: number | null;
-  isPrimary: boolean;
+  position: string; ovr: number | null; isPrimary: boolean;
 }) {
   const colors = POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors} ${!isPrimary ? 'opacity-70' : ''}`}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors} ${!isPrimary ? 'opacity-75' : ''}`}>
       {position}
       {ovr !== null && (
         <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>
@@ -148,23 +208,6 @@ function OverallBadge({ value }: { value: number }) {
   else if (value >= 60) color = 'text-blue-400';
   else if (value >= 50) color = 'text-zinc-300';
   return <span className={`font-bold text-base ${color}`}>{value}</span>;
-}
-
-function CountryFlag({ code }: { code: string }) {
-  const [error, setError] = useState(false);
-  if (error || !code) return <span className="text-[10px] text-zinc-500">{code}</span>;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`}
-      alt={code}
-      title={code}
-      width={20}
-      height={15}
-      className="inline-block rounded-sm"
-      onError={() => setError(true)}
-    />
-  );
 }
 
 /* ════════════════════════════════════════════════════
@@ -202,14 +245,13 @@ const columns = [
       const row = info.row.original;
       const hasStats = row.pace != null;
 
-      // Calculate OVR per position
       const posOvrs = row.positions.map((pos, i) => {
         if (i === 0) return { pos, ovr: row.overall, isPrimary: true };
         if (!hasStats) return { pos, ovr: null as number | null, isPrimary: false };
         const calculated = calcPositionOvr(pos, {
           pace: row.pace!, shooting: row.shooting!, passing: row.passing!,
           dribbling: row.dribbling!, defense: row.defense!, physical: row.physical!,
-        }, 1); // -1 penalty for secondary/tertiary
+        }, 1);
         return { pos, ovr: calculated, isPrimary: false };
       });
 
@@ -251,9 +293,7 @@ const columns = [
       if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
       return (
         <div className="flex items-center gap-1">
-          {nats.map((code) => (
-            <CountryFlag key={code} code={code} />
-          ))}
+          {nats.map((code) => <CountryFlag key={code} code={code} />)}
         </div>
       );
     },
@@ -303,6 +343,26 @@ const INTERVALS: { label: string; value: ProgressionInterval }[] = [
 ];
 
 /* ════════════════════════════════════════════════════
+   SMALL FILTER INPUT
+   ════════════════════════════════════════════════════ */
+
+function FilterInput({
+  value, onChange, placeholder, className = '',
+}: {
+  value: string; onChange: (v: string) => void; placeholder: string; className?: string;
+}) {
+  return (
+    <input
+      type="number"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors ${className}`}
+    />
+  );
+}
+
+/* ════════════════════════════════════════════════════
    MAIN COMPONENT
    ════════════════════════════════════════════════════ */
 
@@ -322,9 +382,24 @@ export default function PlayerTable() {
   const [ageMax, setAgeMax] = useState('');
   const [ovrMin, setOvrMin] = useState('');
   const [ovrMax, setOvrMax] = useState('');
-  const [progFilter, setProgFilter] = useState<'' | 'positive' | 'negative'>('');
+  const [progMin, setProgMin] = useState('');
+  const [progMax, setProgMax] = useState('');
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
+
+  const hasFilters = search || position || ageMin || ageMax || ovrMin || ovrMax || progMin || progMax;
+
+  const resetFilters = () => {
+    setSearch('');
+    setPosition('');
+    setAgeMin('');
+    setAgeMax('');
+    setOvrMin('');
+    setOvrMax('');
+    setProgMin('');
+    setProgMax('');
+    setSorting([{ id: 'overall', desc: true }]);
+  };
 
   // Debounce search
   useEffect(() => {
@@ -346,7 +421,8 @@ export default function PlayerTable() {
       if (ageMax) params.set('ageMax', ageMax);
       if (ovrMin) params.set('ovrMin', ovrMin);
       if (ovrMax) params.set('ovrMax', ovrMax);
-      if (progFilter) params.set('progFilter', progFilter);
+      if (progMin) params.set('progMin', progMin);
+      if (progMax) params.set('progMax', progMax);
 
       const res = await fetch(`/api/players?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -359,10 +435,10 @@ export default function PlayerTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progFilter]);
+  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progFilter]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
 
   const table = useReactTable({
     data,
@@ -379,7 +455,6 @@ export default function PlayerTable() {
       <div className="glass-card p-4 space-y-3">
         {/* Row 1: Search + Position + Interval */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
             <input
@@ -391,7 +466,6 @@ export default function PlayerTable() {
             />
           </div>
 
-          {/* Position */}
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
@@ -407,7 +481,6 @@ export default function PlayerTable() {
             ))}
           </select>
 
-          {/* Interval */}
           <div className="flex gap-0.5 bg-white/5 rounded-lg p-1 border border-white/10">
             {INTERVALS.map((int) => (
               <button
@@ -425,26 +498,14 @@ export default function PlayerTable() {
           </div>
         </div>
 
-        {/* Row 2: Age + OVR + Progression filter + Count */}
+        {/* Row 2: Range filters + Reset + Count */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Age range */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Age</span>
-            <input
-              type="number"
-              placeholder="Min"
-              value={ageMin}
-              onChange={(e) => setAgeMin(e.target.value)}
-              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
-            />
+            <FilterInput value={ageMin} onChange={setAgeMin} placeholder="Min" />
             <span className="text-zinc-600 text-xs">-</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={ageMax}
-              onChange={(e) => setAgeMax(e.target.value)}
-              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
-            />
+            <FilterInput value={ageMax} onChange={setAgeMax} placeholder="Max" />
           </div>
 
           <div className="w-px h-5 bg-white/10" />
@@ -452,54 +513,35 @@ export default function PlayerTable() {
           {/* OVR range */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">OVR</span>
-            <input
-              type="number"
-              placeholder="Min"
-              value={ovrMin}
-              onChange={(e) => setOvrMin(e.target.value)}
-              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
-            />
+            <FilterInput value={ovrMin} onChange={setOvrMin} placeholder="Min" />
             <span className="text-zinc-600 text-xs">-</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={ovrMax}
-              onChange={(e) => setOvrMax(e.target.value)}
-              className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
-            />
+            <FilterInput value={ovrMax} onChange={setOvrMax} placeholder="Max" />
           </div>
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Progression filter */}
+          {/* Progression range */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog</span>
-            <div className="flex gap-0.5 bg-white/5 rounded-md p-0.5 border border-white/10">
-              {([
-                { label: 'All', value: '' as const },
-                { label: '+', value: 'positive' as const },
-                { label: '-', value: 'negative' as const },
-              ]).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setProgFilter(opt.value)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
-                    progFilter === opt.value
-                      ? opt.value === 'positive'
-                        ? 'bg-emerald-500/25 text-emerald-300'
-                        : opt.value === 'negative'
-                        ? 'bg-red-500/25 text-red-300'
-                        : 'bg-white/10 text-zinc-300'
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog OVR</span>
+            <FilterInput value={progMin} onChange={setProgMin} placeholder="Min" />
+            <span className="text-zinc-600 text-xs">-</span>
+            <FilterInput value={progMax} onChange={setProgMax} placeholder="Max" />
           </div>
 
-          {/* Spacer + total */}
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Reset */}
+          {hasFilters && (
+            <button
+              onClick={resetFilters}
+              className="glass-button px-2.5 py-1.5 text-[11px] text-zinc-400 hover:text-orange-400 inline-flex items-center gap-1"
+            >
+              <RotateCcw size={12} />
+              Reset
+            </button>
+          )}
+
+          {/* Total */}
           <div className="ml-auto text-zinc-500 text-sm">
             <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> players
           </div>

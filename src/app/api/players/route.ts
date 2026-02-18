@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
   const minAge = Number(searchParams.get('ageMin')) || 0;
   const maxAge = Number(searchParams.get('ageMax')) || 0;
   const interval = (searchParams.get('interval') as ProgressionInterval) || 'ALL';
-  const progFilter = searchParams.get('progFilter') || ''; // 'positive' | 'negative' | ''
+  const progMinStr = searchParams.get('progMin') ?? '';
+  const progMaxStr = searchParams.get('progMax') ?? '';
 
   try {
     const db = await getDb();
@@ -73,14 +74,17 @@ export async function GET(request: NextRequest) {
       conditions.push(sql`${players.age} <= ${maxAge}`);
     }
 
-    // Progression filter (only works with ALL interval for now)
-    if (progFilter === 'positive') {
+    // Progression min/max filter (subquery on progressions table)
+    if (progMinStr !== '') {
+      const progMin = Number(progMinStr);
       conditions.push(
-        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall > 0)`
+        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall >= ${progMin})`
       );
-    } else if (progFilter === 'negative') {
+    }
+    if (progMaxStr !== '') {
+      const progMax = Number(progMaxStr);
       conditions.push(
-        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall < 0)`
+        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall <= ${progMax})`
       );
     }
 

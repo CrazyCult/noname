@@ -43,6 +43,8 @@ async function crawlPlayers() {
       nationalities: player.metadata.nationalities,
       ownerAddress: player.ownedBy?.walletAddress ?? null,
       ownerName: player.ownedBy?.name ?? null,
+      revenueShare: player.activeContract?.revenueShare ?? 0,
+      offerStatus: player.offerStatus ?? 0,
     }));
 
     await db
@@ -58,6 +60,8 @@ async function crawlPlayers() {
           nationalities: sql`VALUES(${players.nationalities})`,
           ownerAddress: sql`VALUES(${players.ownerAddress})`,
           ownerName: sql`VALUES(${players.ownerName})`,
+          revenueShare: sql`VALUES(${players.revenueShare})`,
+          offerStatus: sql`VALUES(${players.offerStatus})`,
         },
       });
 

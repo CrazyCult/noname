@@ -20,6 +20,8 @@ export const players = mysqlTable(
     nationalities: json('nationalities').$type<string[]>(),
     ownerAddress: varchar('owner_address', { length: 255 }),
     ownerName: varchar('owner_name', { length: 255 }),
+    revenueShare: int('revenue_share').default(0),
+    offerStatus: int('offer_status').default(0),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
   },
   (table) => ({

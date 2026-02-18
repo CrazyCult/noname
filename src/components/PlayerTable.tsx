@@ -195,6 +195,35 @@ const columns = [
     enableSorting: false,
   }),
 
+  columnHelper.accessor('revenueShare', {
+    header: 'RS%',
+    cell: (info) => {
+      const val = info.getValue();
+      return (
+        <span className={`text-xs font-medium ${val > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>
+          {val}%
+        </span>
+      );
+    },
+    enableSorting: false,
+  }),
+
+  columnHelper.accessor('offerStatus', {
+    header: 'Statut',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val > 0) {
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+            VENTE
+          </span>
+        );
+      }
+      return <span className="text-zinc-700 text-[10px]">—</span>;
+    },
+    enableSorting: false,
+  }),
+
   columnHelper.accessor('progression', {
     header: 'Progression',
     cell: (info) => {

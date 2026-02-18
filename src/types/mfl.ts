@@ -20,6 +20,10 @@ export interface MflPlayer {
     walletAddress: string;
     name: string;
   };
+  activeContract?: {
+    revenueShare: number;
+  };
+  offerStatus?: number;
 }
 
 /** Progression values for a single player */
@@ -54,6 +58,8 @@ export interface PlayerRow {
   positions: string[];
   nationalities: string[];
   ownerName: string | null;
+  revenueShare: number;
+  offerStatus: number;
   progression?: MflProgression;
   /** OVR pré-calculé par position (primaire, secondaire, tertiaire) */
   positionOvrs: { position: string; ovr: number }[];

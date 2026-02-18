@@ -235,7 +235,8 @@ export async function GET(request: NextRequest) {
         nationalities: (p.nationalities as string[]) ?? [],
         ownerName: p.ownerName,
         revenueShare: stats?.revenueShare ?? p.revenueShare ?? 0,
-        offerStatus: stats?.offerStatus ?? p.offerStatus ?? 0,
+        clause: stats?.clause ?? 0,
+        listingPrice: stats?.listingPrice ?? null,
         progression: prog || undefined,
         positionOvrs: positionOvrs.map(({ position, ovr }) => ({ position, ovr })),
       };

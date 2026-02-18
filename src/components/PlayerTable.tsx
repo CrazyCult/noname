@@ -198,29 +198,33 @@ const columns = [
   columnHelper.accessor('revenueShare', {
     header: 'RS%',
     cell: (info) => {
-      const raw = info.getValue();
-      const pct = raw / 100;
+      const row = info.row.original;
+      const rs = row.revenueShare / 100;
+      const clause = row.clause / 100;
+      if (rs === 0 && clause === 0) {
+        return <span className="text-zinc-600 text-xs">0%</span>;
+      }
       return (
-        <span className={`text-xs font-medium ${pct > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>
-          {pct}%
+        <span className="text-xs font-medium text-amber-400">
+          {rs}{clause > 0 ? <span className="text-orange-400">+{clause}</span> : ''}%
         </span>
       );
     },
     enableSorting: false,
   }),
 
-  columnHelper.accessor('offerStatus', {
-    header: 'Statut',
+  columnHelper.accessor('listingPrice', {
+    header: 'Vente',
     cell: (info) => {
-      const val = info.getValue();
-      if (val > 0) {
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-            VENTE
-          </span>
-        );
+      const price = info.getValue();
+      if (price == null) {
+        return <span className="text-zinc-700 text-[10px]">—</span>;
       }
-      return <span className="text-zinc-700 text-[10px]">—</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+          {price.toLocaleString()} $
+        </span>
+      );
     },
     enableSorting: false,
   }),

@@ -1,17 +1,20 @@
 #!/bin/bash
 set -e
 
+# Ce script tourne sur la machine locale (celle qui héberge MySQL).
+# Il est appelé par crontab 2x/jour.
+# Prérequis : npm install déjà fait dans le repo.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "=== MFL Scout Crawl Started ==="
 echo "Time: $(date)"
 
-# Install dependencies if needed
-npm install
-
-# Run crawls
 echo "Step 1/2: Crawling progressions ALL..."
 npm run crawl:progressions ALL
 
 echo "Step 2/2: Creating snapshot..."
-npx tsx src/scripts/crawl-snapshots.ts
+npm run crawl:snapshots
 
 echo "=== Crawl Complete ==="

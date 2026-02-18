@@ -1,0 +1,11 @@
+# MFL Scout - Crontab pour la machine locale (celle qui héberge MySQL)
+# Installer avec : crontab scripts/crontab.example
+#
+# Adapter le chemin /home/user/mflscout au chemin réel du repo.
+# Les logs sont écrits dans /var/log/mflscout-crawl.log
+
+# Crawl matin (10h15 heure Paris)
+15 10 * * * /bin/bash /home/user/mflscout/scripts/auto-crawl.sh >> /var/log/mflscout-crawl.log 2>&1
+
+# Crawl soir (23h00 heure Paris)
+0 23 * * * /bin/bash /home/user/mflscout/scripts/auto-crawl.sh >> /var/log/mflscout-crawl.log 2>&1

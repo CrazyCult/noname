@@ -2,19 +2,14 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'MFL Scout - Player Dashboard',
-  description:
-    'Track MFL player stats, progressions, and discover talent with real-time data.',
+  title: 'MFL Scout',
+  description: 'Track MFL player stats and progressions.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased">{children}</body>
+    <html lang="fr" className="dark">
+      <body>{children}</body>
     </html>
   );
 }

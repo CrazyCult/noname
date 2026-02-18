@@ -1,33 +1,52 @@
-import { Activity } from 'lucide-react';
+'use client';
+
+import { useState, useEffect } from 'react';
 import PlayerTable from '@/components/PlayerTable';
+
+function LastUpdate() {
+  const [lastSnapshot, setLastSnapshot] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then((r) => r.json())
+      .then((data) => setLastSnapshot(data.lastSnapshot))
+      .catch(() => {});
+  }, []);
+
+  if (!lastSnapshot) return <span className="text-xs text-zinc-600">Data refreshed 2x/day</span>;
+
+  const date = new Date(lastSnapshot);
+  const formatted = date.toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  return (
+    <div className="text-right">
+      <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Last update</div>
+      <div className="text-xs text-zinc-400">{formatted}</div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="min-h-screen glow-accent">
+    <div className="min-h-screen bg-[#0a0a0a]">
       {/* Header */}
-      <header className="border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-              <Activity size={18} className="text-blue-400" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white tracking-tight">
-                MFL Scout
-              </h1>
-              <p className="text-[11px] text-zinc-500 -mt-0.5">
-                Player Progression Dashboard
-              </p>
-            </div>
+      <header className="border-b border-orange-500/30 bg-black/50 backdrop-blur-sm">
+        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              MFL <span className="text-orange-500">Scout</span>
+            </h1>
+            <p className="text-xs text-zinc-500 mt-0.5">Player Progression Dashboard</p>
           </div>
-          <div className="text-xs text-zinc-600">
-            Powered by MFL API
-          </div>
+          <LastUpdate />
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6 relative z-10">
+      {/* Content */}
+      <main className="max-w-[1400px] mx-auto px-6 py-6">
         <PlayerTable />
       </main>
     </div>

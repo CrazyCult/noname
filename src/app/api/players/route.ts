@@ -3,28 +3,23 @@ import { getDb } from '@/db';
 import { players, progressions, playerSnapshots } from '@/db/schema';
 import { desc, asc, sql } from 'drizzle-orm';
 import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
+import { fetchPlayersStats } from '@/lib/mfl-api';
+import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
 
-/**
- * Calcule la date de début selon l'intervalle
- */
 function getStartDate(interval: ProgressionInterval): Date {
   const now = new Date();
-  
   switch (interval) {
     case '24H':
       return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
     case 'WEEK':
       return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
     case 'MONTH':
       return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
-    case 'CURRENT_SEASON':
+    case 'CURRENT_SEASON': {
       const currentMonth = now.getMonth();
       const seasonStartYear = currentMonth < 9 ? now.getFullYear() - 1 : now.getFullYear();
-      return new Date(seasonStartYear, 9, 1); // 1er octobre
-    
+      return new Date(seasonStartYear, 9, 1);
+    }
     case 'ALL':
     default:
       return new Date('2020-01-01');
@@ -42,14 +37,18 @@ export async function GET(request: NextRequest) {
   const sortOrder = searchParams.get('sortOrder') || 'desc';
   const search = searchParams.get('search') || '';
   const position = searchParams.get('position') || '';
-  const minOverall = Number(searchParams.get('minOverall')) || 0;
-  const maxOverall = Number(searchParams.get('maxOverall')) || 100;
-  const interval = (searchParams.get('interval') as ProgressionInterval) || 'WEEK';
+  const minOverall = Number(searchParams.get('ovrMin')) || 0;
+  const maxOverall = Number(searchParams.get('ovrMax')) || 0;
+  const minAge = Number(searchParams.get('ageMin')) || 0;
+  const maxAge = Number(searchParams.get('ageMax')) || 0;
+  const interval = (searchParams.get('interval') as ProgressionInterval) || 'ALL';
+  const progMinStr = searchParams.get('progMin') ?? '';
+  const progMaxStr = searchParams.get('progMax') ?? '';
 
   try {
     const db = await getDb();
 
-    // Build conditions
+    // Build WHERE conditions
     const conditions = [];
 
     if (search) {
@@ -67,9 +66,28 @@ export async function GET(request: NextRequest) {
     if (minOverall > 0) {
       conditions.push(sql`${players.overall} >= ${minOverall}`);
     }
-
-    if (maxOverall < 100) {
+    if (maxOverall > 0) {
       conditions.push(sql`${players.overall} <= ${maxOverall}`);
+    }
+    if (minAge > 0) {
+      conditions.push(sql`${players.age} >= ${minAge}`);
+    }
+    if (maxAge > 0) {
+      conditions.push(sql`${players.age} <= ${maxAge}`);
+    }
+
+    // Progression OVR min/max filter
+    if (progMinStr !== '') {
+      const progMin = Number(progMinStr);
+      conditions.push(
+        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall >= ${progMin})`
+      );
+    }
+    if (progMaxStr !== '') {
+      const progMax = Number(progMaxStr);
+      conditions.push(
+        sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall <= ${progMax})`
+      );
     }
 
     const whereClause =
@@ -77,24 +95,22 @@ export async function GET(request: NextRequest) {
         ? sql`${sql.join(conditions, sql` AND `)}`
         : undefined;
 
-    // Count total
+    // Count
     const countResult = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(players)
       .where(whereClause);
     const total = countResult[0].count;
 
-    // Sort column mapping
+    // Sort column
     const sortColumn = (() => {
       switch (sortBy) {
-        case 'age':
-          return players.age;
-        case 'firstName':
-          return players.firstName;
-        case 'lastName':
-          return players.lastName;
-        default:
-          return players.overall;
+        case 'id': return players.id;
+        case 'name':
+        case 'firstName': return players.firstName;
+        case 'lastName': return players.lastName;
+        case 'age': return players.age;
+        default: return players.overall;
       }
     })();
 
@@ -110,31 +126,22 @@ export async function GET(request: NextRequest) {
       .offset(offset);
 
     const playerIds = playerRows.map((p) => p.id);
+
+    // ── Progression data ──
     const progressionMap: Record<number, {
-      overall: number;
-      pace: number;
-      shooting: number;
-      passing: number;
-      dribbling: number;
-      defense: number;
-      physical: number;
+      overall: number; pace: number; shooting: number;
+      passing: number; dribbling: number; defense: number; physical: number;
     }> = {};
 
     if (playerIds.length > 0) {
-      // ========================================
-      // STRATÉGIE HYBRIDE
-      // ========================================
-      
+      const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
+
       if (interval === 'ALL') {
-        // Pour ALL : Utiliser la table progressions
         const progRows = await db
           .select()
           .from(progressions)
           .where(
-            sql`${progressions.playerId} IN (${sql.join(
-              playerIds.map((id) => sql`${id}`),
-              sql`, `
-            )}) AND ${progressions.interval} = 'ALL'`
+            sql`${progressions.playerId} IN (${idsJoin}) AND ${progressions.interval} = 'ALL'`
           );
 
         for (const row of progRows) {
@@ -149,32 +156,46 @@ export async function GET(request: NextRequest) {
           };
         }
       } else {
-        // Pour les autres intervalles : Calculer depuis les snapshots
         const startDate = getStartDate(interval);
 
+        const currentSnapshots = await db
+          .select()
+          .from(playerSnapshots)
+          .where(
+            sql`${playerSnapshots.playerId} IN (${idsJoin})
+              AND ${playerSnapshots.id} IN (
+                SELECT MAX(${playerSnapshots.id})
+                FROM ${playerSnapshots}
+                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
+                GROUP BY ${playerSnapshots.playerId}
+              )`
+          );
+
+        const referenceSnapshots = await db
+          .select()
+          .from(playerSnapshots)
+          .where(
+            sql`${playerSnapshots.playerId} IN (${idsJoin})
+              AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
+              AND ${playerSnapshots.id} IN (
+                SELECT MIN(${playerSnapshots.id})
+                FROM ${playerSnapshots}
+                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
+                  AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
+                GROUP BY ${playerSnapshots.playerId}
+              )`
+          );
+
+        const currentMap: Record<number, typeof currentSnapshots[number]> = {};
+        for (const snap of currentSnapshots) currentMap[snap.playerId] = snap;
+
+        const refMap: Record<number, typeof referenceSnapshots[number]> = {};
+        for (const snap of referenceSnapshots) refMap[snap.playerId] = snap;
+
         for (const playerId of playerIds) {
-          // Snapshot actuel (le plus récent)
-          const currentSnapshot = await db
-            .select()
-            .from(playerSnapshots)
-            .where(sql`${playerSnapshots.playerId} = ${playerId}`)
-            .orderBy(desc(playerSnapshots.createdAt))
-            .limit(1);
-
-          // Snapshot de référence (le plus proche de la date de début)
-          const referenceSnapshot = await db
-            .select()
-            .from(playerSnapshots)
-            .where(
-              sql`${playerSnapshots.playerId} = ${playerId} AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}`
-            )
-            .orderBy(asc(playerSnapshots.createdAt))
-            .limit(1);
-
-          if (currentSnapshot.length > 0 && referenceSnapshot.length > 0) {
-            const current = currentSnapshot[0];
-            const reference = referenceSnapshot[0];
-
+          const current = currentMap[playerId];
+          const reference = refMap[playerId];
+          if (current && reference) {
             progressionMap[playerId] = {
               overall: current.overall - reference.overall,
               pace: current.pace - reference.pace,
@@ -189,36 +210,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Transform to frontend format
+    // ── Fetch absolute stats from MFL API for OVR calculation ──
+    const statsMap = playerIds.length > 0 ? await fetchPlayersStats(playerIds) : {};
+
+    // Build response with pre-computed position OVRs
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
+      const positions = (p.positions as string[]) ?? [];
+      const stats = statsMap[p.id] ?? null;
+
+      const positionOvrs = calculateAllPositionOvrs(
+        positions,
+        p.overall,
+        stats,
+      );
+
       return {
         id: p.id,
         firstName: p.firstName,
         lastName: p.lastName,
         overall: p.overall,
         age: p.age,
-        positions: (p.positions as string[]) ?? [],
+        positions,
         nationalities: (p.nationalities as string[]) ?? [],
         ownerName: p.ownerName,
+        revenueShare: p.revenueShare ?? 0,
+        offerStatus: p.offerStatus ?? 0,
         progression: prog || undefined,
+        positionOvrs: positionOvrs.map(({ position, ovr }) => ({ position, ovr })),
       };
     });
 
     return NextResponse.json({
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error('API /players error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

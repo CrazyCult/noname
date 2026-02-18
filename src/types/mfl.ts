@@ -8,11 +8,22 @@ export interface MflPlayer {
     age: number;
     positions: string[];
     nationalities: string[];
+    pace: number;
+    shooting: number;
+    passing: number;
+    dribbling: number;
+    defense: number;
+    physical: number;
+    goalkeeping: number;
   };
   ownedBy?: {
     walletAddress: string;
     name: string;
   };
+  activeContract?: {
+    revenueShare: number;
+  };
+  offerStatus?: number;
 }
 
 /** Progression values for a single player */
@@ -47,7 +58,11 @@ export interface PlayerRow {
   positions: string[];
   nationalities: string[];
   ownerName: string | null;
+  revenueShare: number;
+  offerStatus: number;
   progression?: MflProgression;
+  /** OVR pré-calculé par position (primaire, secondaire, tertiaire) */
+  positionOvrs: { position: string; ovr: number }[];
 }
 
 /** Player history entry from MFL API */

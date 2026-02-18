@@ -8,9 +8,9 @@ const MFL_API_URL =
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const playerId = params.id;
+  const { id: playerId } = await params;
   const searchParams = request.nextUrl.searchParams;
   const interval = (searchParams.get('interval') || 'ALL') as HistoryInterval;
 

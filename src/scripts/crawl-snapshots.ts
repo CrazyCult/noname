@@ -1,15 +1,16 @@
 /**
  * Snapshot Crawler
- * 
+ *
  * Crawle les progressions ALL et les stocke comme snapshot historique
  * À exécuter toutes les 12h pour construire un historique incrémental
- * 
+ *
  * Usage: npx tsx src/scripts/crawl-snapshots.ts
  */
 import 'dotenv/config';
 import { getDb } from '../db';
 import { players, playerSnapshots } from '../db/schema';
 import { fetchProgressions } from '../lib/mfl-api';
+import { sql } from 'drizzle-orm';
 
 const BATCH_SIZE = 200;
 
@@ -19,9 +20,12 @@ async function crawlSnapshots() {
   console.log('[Snapshots] Starting snapshot crawl...');
   console.log(`[Snapshots] Timestamp: ${new Date().toISOString()}`);
 
-  // Récupérer tous les IDs de joueurs
-  const allPlayers = await db.select({ id: players.id }).from(players);
+  // Récupérer tous les joueurs (ID + age)
+  const allPlayers = await db
+    .select({ id: players.id, age: players.age })
+    .from(players);
   const playerIds = allPlayers.map((p) => p.id);
+  const ageMap = new Map(allPlayers.map((p) => [p.id, p.age]));
 
   console.log(`[Snapshots] Fetching ALL progressions for ${playerIds.length} players...`);
 
@@ -40,35 +44,34 @@ async function crawlSnapshots() {
       // Récupérer les progressions ALL pour ce batch
       const data = await fetchProgressions(batch, 'ALL');
 
-      // Insérer les snapshots dans la DB
+      // Batch insert des snapshots
+      const values = [];
       for (const [idStr, prog] of Object.entries(data)) {
         const playerId = Number(idStr);
+        values.push({
+          playerId,
+          overall: prog.overall ?? 0,
+          pace: prog.pace ?? 0,
+          shooting: prog.shooting ?? 0,
+          passing: prog.passing ?? 0,
+          dribbling: prog.dribbling ?? 0,
+          defense: prog.defense ?? 0,
+          physical: prog.physical ?? 0,
+          age: ageMap.get(playerId) ?? 0,
+        });
+      }
 
-        try {
-          await db.insert(playerSnapshots).values({
-            playerId,
-            overall: prog.overall ?? 0,
-            pace: prog.pace ?? 0,
-            shooting: prog.shooting ?? 0,
-            passing: prog.passing ?? 0,
-            dribbling: prog.dribbling ?? 0,
-            defense: prog.defense ?? 0,
-            physical: prog.physical ?? 0,
-            age: 0, // On ne connaît pas l'âge depuis les progressions, on met 0
-          });
-
-          inserted++;
-        } catch (err) {
-          console.error(`  ✗ Failed to insert snapshot for player ${playerId}: ${err.message}`);
-          errors++;
-        }
+      if (values.length > 0) {
+        await db.insert(playerSnapshots).values(values);
+        inserted += values.length;
       }
 
       processed += batch.length;
       console.log(`[Snapshots] Progress: ${processed}/${playerIds.length} (${inserted} snapshots, ${errors} errors)`);
 
-    } catch (err) {
-      console.error(`[Snapshots] Batch ${batchNum} failed: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Snapshots] Batch ${batchNum} failed: ${message}`);
       errors += batch.length;
     }
 

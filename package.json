@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node server.js",
+    "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "crawl:players": "tsx src/scripts/crawl-players.ts",
-    "crawl:progressions": "tsx src/scripts/crawl-progressions.ts"
+    "crawl:progressions": "tsx src/scripts/crawl-progressions.ts",
+    "crawl:snapshots": "tsx src/scripts/crawl-snapshots.ts"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

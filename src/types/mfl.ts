@@ -55,13 +55,8 @@ export interface PlayerRow {
   nationalities: string[];
   ownerName: string | null;
   progression?: MflProgression;
-  /** Individual stats (absolute values from latest snapshot) */
-  pace?: number;
-  shooting?: number;
-  passing?: number;
-  dribbling?: number;
-  defense?: number;
-  physical?: number;
+  /** OVR pré-calculé par position (primaire, secondaire, tertiaire) */
+  positionOvrs: { position: string; ovr: number }[];
 }
 
 /** Player history entry from MFL API */

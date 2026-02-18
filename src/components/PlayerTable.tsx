@@ -19,52 +19,6 @@ import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl
 import { countryToFlag } from '@/lib/country-codes';
 
 /* ════════════════════════════════════════════════════
-   POIDS OVR PAR POSITION (EN uniquement, c'est le format MFL API)
-   ════════════════════════════════════════════════════ */
-
-type OvrWeights = { pas: number; sho: number; def: number; dri: number; pac: number; phy: number };
-
-const OVR_WEIGHTS: Record<string, OvrWeights> = {
-  ST:  { pas: 0.10, sho: 0.46, def: 0.00, dri: 0.29, pac: 0.10, phy: 0.05 },
-  CF:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  LW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  RW:  { pas: 0.24, sho: 0.23, def: 0.00, dri: 0.40, pac: 0.13, phy: 0.00 },
-  CAM: { pas: 0.34, sho: 0.21, def: 0.00, dri: 0.38, pac: 0.07, phy: 0.00 },
-  CM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  LM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  RM:  { pas: 0.43, sho: 0.12, def: 0.10, dri: 0.29, pac: 0.00, phy: 0.06 },
-  CDM: { pas: 0.28, sho: 0.00, def: 0.40, dri: 0.17, pac: 0.00, phy: 0.15 },
-  LB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  RB:  { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  LWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  RWB: { pas: 0.19, sho: 0.00, def: 0.44, dri: 0.17, pac: 0.10, phy: 0.10 },
-  CB:  { pas: 0.05, sho: 0.00, def: 0.64, dri: 0.09, pac: 0.02, phy: 0.20 },
-};
-
-const GK_POSITIONS = new Set(['GK']);
-
-function calcPositionOvr(
-  pos: string,
-  stats: { pace: number; shooting: number; passing: number; dribbling: number; defense: number; physical: number },
-  penalty: number,
-): number | null {
-  if (GK_POSITIONS.has(pos)) {
-    // GK needs goalkeeping stat which snapshots don't store
-    return null;
-  }
-  const w = OVR_WEIGHTS[pos];
-  if (!w) return null;
-  return Math.round(
-    (stats.passing - penalty) * w.pas +
-    (stats.shooting - penalty) * w.sho +
-    (stats.defense - penalty) * w.def +
-    (stats.dribbling - penalty) * w.dri +
-    (stats.pace - penalty) * w.pac +
-    (stats.physical - penalty) * w.phy
-  );
-}
-
-/* ════════════════════════════════════════════════════
    POSITIONS MFL (EN — format API)
    ════════════════════════════════════════════════════ */
 
@@ -129,17 +83,15 @@ const POS_COLORS: Record<string, string> = {
 function PositionWithOvr({
   position, ovr, isPrimary,
 }: {
-  position: string; ovr: number | null; isPrimary: boolean;
+  position: string; ovr: number; isPrimary: boolean;
 }) {
   const colors = POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors} ${!isPrimary ? 'opacity-75' : ''}`}>
       {position}
-      {ovr !== null && (
-        <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>
-          {ovr}
-        </span>
-      )}
+      <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>
+        {ovr}
+      </span>
     </span>
   );
 }
@@ -187,17 +139,6 @@ const columns = [
     header: 'Joueur',
     cell: (info) => {
       const row = info.row.original;
-      const hasStats = row.pace != null && row.shooting != null;
-
-      const posOvrs = row.positions.map((pos, i) => {
-        if (i === 0) return { pos, ovr: row.overall, isPrimary: true };
-        if (!hasStats) return { pos, ovr: null as number | null, isPrimary: false };
-        const calculated = calcPositionOvr(pos, {
-          pace: row.pace!, shooting: row.shooting!, passing: row.passing!,
-          dribbling: row.dribbling!, defense: row.defense!, physical: row.physical!,
-        }, 1); // pénalité -1 pour secondaire/tertiaire
-        return { pos, ovr: calculated, isPrimary: false };
-      });
 
       return (
         <div className="min-w-[180px]">
@@ -211,8 +152,8 @@ const columns = [
             <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
           </a>
           <div className="flex flex-wrap gap-1 mt-1">
-            {posOvrs.map(({ pos, ovr, isPrimary }) => (
-              <PositionWithOvr key={pos} position={pos} ovr={ovr} isPrimary={isPrimary} />
+            {row.positionOvrs.map(({ position, ovr }, i) => (
+              <PositionWithOvr key={position} position={position} ovr={ovr} isPrimary={i === 0} />
             ))}
           </div>
         </div>

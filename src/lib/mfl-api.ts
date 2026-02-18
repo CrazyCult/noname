@@ -36,6 +36,59 @@ export async function fetchPlayersPage(
 }
 
 /**
+ * Fetch a single player by ID from the MFL API.
+ * Returns the player metadata including individual stats.
+ */
+export async function fetchPlayerById(id: number): Promise<MflPlayer | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/players/${id}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.player ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch multiple players by IDs in parallel.
+ * Returns a map of player ID → metadata stats.
+ */
+export async function fetchPlayersStats(
+  ids: number[]
+): Promise<Record<number, {
+  pace: number; shooting: number; passing: number;
+  dribbling: number; defense: number; physical: number;
+  goalkeeping: number;
+}>> {
+  const results = await Promise.allSettled(ids.map(fetchPlayerById));
+  const statsMap: Record<number, {
+    pace: number; shooting: number; passing: number;
+    dribbling: number; defense: number; physical: number;
+    goalkeeping: number;
+  }> = {};
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      const p = result.value;
+      statsMap[p.id] = {
+        pace: p.metadata.pace ?? 0,
+        shooting: p.metadata.shooting ?? 0,
+        passing: p.metadata.passing ?? 0,
+        dribbling: p.metadata.dribbling ?? 0,
+        defense: p.metadata.defense ?? 0,
+        physical: p.metadata.physical ?? 0,
+        goalkeeping: p.metadata.goalkeeping ?? 0,
+      };
+    }
+  }
+
+  return statsMap;
+}
+
+/**
  * Fetch progressions for a batch of player IDs.
  * The API accepts comma-separated IDs (max ~200 per request).
  */

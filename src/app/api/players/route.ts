@@ -3,6 +3,8 @@ import { getDb } from '@/db';
 import { players, progressions, playerSnapshots } from '@/db/schema';
 import { desc, asc, sql } from 'drizzle-orm';
 import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
+import { fetchPlayersStats } from '@/lib/mfl-api';
+import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
 
 function getStartDate(interval: ProgressionInterval): Date {
   const now = new Date();
@@ -208,58 +210,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Latest snapshot stats (absolute values for OVR calculation) ──
-    const statsMap: Record<number, {
-      pace: number; shooting: number; passing: number;
-      dribbling: number; defense: number; physical: number;
-    }> = {};
+    // ── Fetch absolute stats from MFL API for OVR calculation ──
+    const statsMap = playerIds.length > 0 ? await fetchPlayersStats(playerIds) : {};
 
-    if (playerIds.length > 0) {
-      const idsJoin2 = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
-      const latestSnapshots = await db
-        .select()
-        .from(playerSnapshots)
-        .where(
-          sql`${playerSnapshots.playerId} IN (${idsJoin2})
-            AND ${playerSnapshots.id} IN (
-              SELECT MAX(id) FROM ${playerSnapshots}
-              WHERE ${playerSnapshots.playerId} IN (${idsJoin2})
-              GROUP BY ${playerSnapshots.playerId}
-            )`
-        );
-
-      for (const snap of latestSnapshots) {
-        statsMap[snap.playerId] = {
-          pace: snap.pace,
-          shooting: snap.shooting,
-          passing: snap.passing,
-          dribbling: snap.dribbling,
-          defense: snap.defense,
-          physical: snap.physical,
-        };
-      }
-    }
-
-    // Build response
+    // Build response with pre-computed position OVRs
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
-      const stats = statsMap[p.id];
+      const positions = (p.positions as string[]) ?? [];
+      const stats = statsMap[p.id] ?? null;
+
+      const positionOvrs = calculateAllPositionOvrs(
+        positions,
+        p.overall,
+        stats,
+      );
+
       return {
         id: p.id,
         firstName: p.firstName,
         lastName: p.lastName,
         overall: p.overall,
         age: p.age,
-        positions: (p.positions as string[]) ?? [],
+        positions,
         nationalities: (p.nationalities as string[]) ?? [],
         ownerName: p.ownerName,
         progression: prog || undefined,
-        pace: stats?.pace,
-        shooting: stats?.shooting,
-        passing: stats?.passing,
-        dribbling: stats?.dribbling,
-        defense: stats?.defense,
-        physical: stats?.physical,
+        positionOvrs: positionOvrs.map(({ position, ovr }) => ({ position, ovr })),
       };
     });
 

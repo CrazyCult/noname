@@ -192,7 +192,6 @@ const columns = [
         {info.getValue() || <span className="text-zinc-600 italic">Agent libre</span>}
       </span>
     ),
-    enableSorting: false,
   }),
 
   columnHelper.accessor('revenueShare', {
@@ -210,7 +209,6 @@ const columns = [
         </span>
       );
     },
-    enableSorting: false,
   }),
 
   columnHelper.accessor('listingPrice', {
@@ -226,7 +224,6 @@ const columns = [
         </span>
       );
     },
-    enableSorting: false,
   }),
 
   columnHelper.accessor('progression', {
@@ -245,7 +242,6 @@ const columns = [
         </div>
       );
     },
-    enableSorting: false,
   }),
 ];
 
@@ -343,10 +339,37 @@ export default function PlayerTable() {
       if (progMin) params.set('progMin', progMin);
       if (progMax) params.set('progMax', progMax);
 
+      // For client-side-only columns, don't send them to API (falls back to overall)
+      const clientSortColumns = ['listingPrice', 'progression'];
+      if (clientSortColumns.includes(sortBy)) {
+        params.set('sortBy', 'overall');
+        params.set('sortOrder', 'desc');
+      }
+
       const res = await fetch(`/api/players?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: ApiResponse = await res.json();
-      setData(json.data);
+
+      // Client-side sort for columns without DB backing
+      let results = json.data;
+      if (sortBy === 'listingPrice') {
+        const dir = sortOrder === 'desc' ? -1 : 1;
+        results = [...results].sort((a, b) => {
+          if (a.listingPrice == null && b.listingPrice == null) return 0;
+          if (a.listingPrice == null) return 1;
+          if (b.listingPrice == null) return -1;
+          return (a.listingPrice - b.listingPrice) * dir;
+        });
+      } else if (sortBy === 'progression') {
+        const dir = sortOrder === 'desc' ? -1 : 1;
+        results = [...results].sort((a, b) => {
+          const aVal = a.progression?.overall ?? 0;
+          const bVal = b.progression?.overall ?? 0;
+          return (aVal - bVal) * dir;
+        });
+      }
+
+      setData(results);
       setTotalPages(json.pagination.totalPages);
       setTotal(json.pagination.total);
     } catch (err) {

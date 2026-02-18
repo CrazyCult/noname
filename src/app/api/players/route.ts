@@ -110,6 +110,8 @@ export async function GET(request: NextRequest) {
         case 'firstName': return players.firstName;
         case 'lastName': return players.lastName;
         case 'age': return players.age;
+        case 'ownerName': return players.ownerName;
+        case 'revenueShare': return players.revenueShare;
         default: return players.overall;
       }
     })();

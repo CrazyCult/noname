@@ -1,5 +1,6 @@
 import type {
   MflPlayer,
+  MflPlayerResponse,
   MflProgressionsResponse,
   ProgressionInterval,
 } from '@/types/mfl';
@@ -37,16 +38,17 @@ export async function fetchPlayersPage(
 
 /**
  * Fetch a single player by ID from the MFL API.
- * Returns the player metadata including individual stats.
+ * Returns player + optional listing data.
  */
-export async function fetchPlayerById(id: number): Promise<MflPlayer | null> {
+export async function fetchPlayerById(id: number): Promise<MflPlayerResponse | null> {
   try {
     const res = await fetch(`${BASE_URL}/players/${id}`, {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.player ?? null;
+    if (!data.player) return null;
+    return data as MflPlayerResponse;
   } catch {
     return null;
   }
@@ -57,12 +59,13 @@ export interface PlayerLiveData {
   dribbling: number; defense: number; physical: number;
   goalkeeping: number;
   revenueShare: number;
-  offerStatus: number;
+  clause: number;
+  listingPrice: number | null;
 }
 
 /**
  * Fetch multiple players by IDs in parallel.
- * Returns a map of player ID → metadata stats + live revenueShare/offerStatus.
+ * Returns a map of player ID → stats + live contract/listing data.
  */
 export async function fetchPlayersStats(
   ids: number[]
@@ -72,7 +75,9 @@ export async function fetchPlayersStats(
 
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value) {
-      const p = result.value;
+      const { player: p, listing } = result.value;
+      const rs = p.activeContract?.revenueShare ?? 0;
+      const totalLocked = p.activeContract?.totalRevenueShareLocked ?? 0;
       statsMap[p.id] = {
         pace: p.metadata.pace ?? 0,
         shooting: p.metadata.shooting ?? 0,
@@ -81,8 +86,9 @@ export async function fetchPlayersStats(
         defense: p.metadata.defense ?? 0,
         physical: p.metadata.physical ?? 0,
         goalkeeping: p.metadata.goalkeeping ?? 0,
-        revenueShare: p.activeContract?.revenueShare ?? 0,
-        offerStatus: p.offerStatus ?? 0,
+        revenueShare: rs,
+        clause: totalLocked - rs,
+        listingPrice: listing?.status === 'AVAILABLE' ? listing.price : null,
       };
     }
   }

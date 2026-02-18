@@ -22,8 +22,25 @@ export interface MflPlayer {
   };
   activeContract?: {
     revenueShare: number;
+    totalRevenueShareLocked: number;
   };
   offerStatus?: number;
+}
+
+/** Listing info returned alongside a player */
+export interface MflListing {
+  listingResourceId: string;
+  status: string;
+  price: number;
+  sellerAddress: string;
+  sellerName: string;
+  createdDateTime: number;
+}
+
+/** Full response from GET /players/:id */
+export interface MflPlayerResponse {
+  player: MflPlayer;
+  listing?: MflListing;
 }
 
 /** Progression values for a single player */
@@ -59,7 +76,8 @@ export interface PlayerRow {
   nationalities: string[];
   ownerName: string | null;
   revenueShare: number;
-  offerStatus: number;
+  clause: number;
+  listingPrice: number | null;
   progression?: MflProgression;
   /** OVR pré-calculé par position (primaire, secondaire, tertiaire) */
   positionOvrs: { position: string; ovr: number }[];

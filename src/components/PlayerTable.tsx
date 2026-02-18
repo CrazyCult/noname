@@ -198,10 +198,11 @@ const columns = [
   columnHelper.accessor('revenueShare', {
     header: 'RS%',
     cell: (info) => {
-      const val = info.getValue();
+      const raw = info.getValue();
+      const pct = raw / 100;
       return (
-        <span className={`text-xs font-medium ${val > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>
-          {val}%
+        <span className={`text-xs font-medium ${pct > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>
+          {pct}%
         </span>
       );
     },

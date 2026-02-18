@@ -21,12 +21,15 @@ export const players = mysqlTable(
     ownerAddress: varchar('owner_address', { length: 255 }),
     ownerName: varchar('owner_name', { length: 255 }),
     revenueShare: int('revenue_share').default(0),
-    offerStatus: int('offer_status').default(0),
+    clause: int('clause').default(0),
+    listingPrice: int('listing_price'),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
   },
   (table) => ({
     overallIdx: index('overall_idx').on(table.overall),
     ageIdx: index('age_idx').on(table.age),
+    revenueShareIdx: index('revenue_share_idx').on(table.revenueShare),
+    listingPriceIdx: index('listing_price_idx').on(table.listingPrice),
   })
 );
 

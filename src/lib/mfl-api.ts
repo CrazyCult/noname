@@ -52,23 +52,23 @@ export async function fetchPlayerById(id: number): Promise<MflPlayer | null> {
   }
 }
 
-/**
- * Fetch multiple players by IDs in parallel.
- * Returns a map of player ID → metadata stats.
- */
-export async function fetchPlayersStats(
-  ids: number[]
-): Promise<Record<number, {
+export interface PlayerLiveData {
   pace: number; shooting: number; passing: number;
   dribbling: number; defense: number; physical: number;
   goalkeeping: number;
-}>> {
+  revenueShare: number;
+  offerStatus: number;
+}
+
+/**
+ * Fetch multiple players by IDs in parallel.
+ * Returns a map of player ID → metadata stats + live revenueShare/offerStatus.
+ */
+export async function fetchPlayersStats(
+  ids: number[]
+): Promise<Record<number, PlayerLiveData>> {
   const results = await Promise.allSettled(ids.map(fetchPlayerById));
-  const statsMap: Record<number, {
-    pace: number; shooting: number; passing: number;
-    dribbling: number; defense: number; physical: number;
-    goalkeeping: number;
-  }> = {};
+  const statsMap: Record<number, PlayerLiveData> = {};
 
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value) {
@@ -81,6 +81,8 @@ export async function fetchPlayersStats(
         defense: p.metadata.defense ?? 0,
         physical: p.metadata.physical ?? 0,
         goalkeeping: p.metadata.goalkeeping ?? 0,
+        revenueShare: p.activeContract?.revenueShare ?? 0,
+        offerStatus: p.offerStatus ?? 0,
       };
     }
   }

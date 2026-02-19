@@ -3,6 +3,8 @@ import { getDb } from '@/db';
 import { playerSnapshots } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const db = await getDb();

@@ -13,7 +13,7 @@ function LastUpdate() {
       .catch(() => {});
   }, []);
 
-  if (!lastSnapshot) return <span className="text-xs text-zinc-600">Data refreshed 2x/day</span>;
+  if (!lastSnapshot) return <span className="text-xs text-zinc-600">Données mises à jour 2x/jour</span>;
 
   const date = new Date(lastSnapshot);
   const formatted = date.toLocaleString('fr-FR', {
@@ -23,7 +23,7 @@ function LastUpdate() {
 
   return (
     <div className="text-right">
-      <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Last update</div>
+      <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Dernière MAJ</div>
       <div className="text-xs text-zinc-400">{formatted}</div>
     </div>
   );
@@ -39,7 +39,7 @@ export default function Home() {
             <h1 className="text-xl font-bold text-white tracking-tight">
               MFL <span className="text-orange-500">Scout</span>
             </h1>
-            <p className="text-xs text-zinc-500 mt-0.5">Player Progression Dashboard</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Tableau de progression des joueurs</p>
           </div>
           <LastUpdate />
         </div>

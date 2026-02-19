@@ -417,27 +417,27 @@ export default function PlayerTable() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Âge</span>
-            <FilterInput value={ageMin} onChange={setAgeMin} placeholder="Min" />
+            <FilterInput value={ageMin} onChange={setAgeMin} placeholder="min" />
             <span className="text-zinc-600 text-xs">-</span>
-            <FilterInput value={ageMax} onChange={setAgeMax} placeholder="Max" />
+            <FilterInput value={ageMax} onChange={setAgeMax} placeholder="max" />
           </div>
 
           <div className="w-px h-5 bg-white/10" />
 
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">OVR</span>
-            <FilterInput value={ovrMin} onChange={setOvrMin} placeholder="Min" />
+            <FilterInput value={ovrMin} onChange={setOvrMin} placeholder="min" />
             <span className="text-zinc-600 text-xs">-</span>
-            <FilterInput value={ovrMax} onChange={setOvrMax} placeholder="Max" />
+            <FilterInput value={ovrMax} onChange={setOvrMax} placeholder="max" />
           </div>
 
           <div className="w-px h-5 bg-white/10" />
 
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog OVR</span>
-            <FilterInput value={progMin} onChange={setProgMin} placeholder="Min" />
+            <FilterInput value={progMin} onChange={setProgMin} placeholder="min" />
             <span className="text-zinc-600 text-xs">-</span>
-            <FilterInput value={progMax} onChange={setProgMax} placeholder="Max" />
+            <FilterInput value={progMax} onChange={setProgMax} placeholder="max" />
           </div>
 
           <div className="w-px h-5 bg-white/10" />

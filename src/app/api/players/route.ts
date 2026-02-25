@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { players, progressions } from '@/db/schema';
-import { desc, asc, sql, eq } from 'drizzle-orm';
+import { desc, asc, sql, eq, and } from 'drizzle-orm';
 import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
 import { fetchPlayersStats } from '@/lib/mfl-api';
 import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
   const interval = (searchParams.get('interval') as ProgressionInterval) || 'ALL';
   const progMinStr = searchParams.get('progMin') ?? '';
   const progMaxStr = searchParams.get('progMax') ?? '';
+  const sortByProgression = sortBy === 'progression';
 
   try {
     const db = await getDb();
@@ -83,63 +84,139 @@ export async function GET(request: NextRequest) {
       .where(whereClause);
     const total = countResult[0].count;
 
-    // Sort column
-    const sortColumn = (() => {
-      switch (sortBy) {
-        case 'id': return players.id;
-        case 'name':
-        case 'firstName': return players.firstName;
-        case 'lastName': return players.lastName;
-        case 'age': return players.age;
-        case 'ownerName': return players.ownerName;
-        case 'revenueShare': return players.revenueShare;
-        case 'clause': return players.clause;
-        case 'listingPrice': return players.listingPrice;
-        default: return players.overall;
-      }
-    })();
-
-    const orderFn = sortOrder === 'asc' ? asc : desc;
-
-    // Fetch players
-    const playerRows = await db
-      .select()
-      .from(players)
-      .where(whereClause)
-      .orderBy(orderFn(sortColumn))
-      .limit(limit)
-      .offset(offset);
-
-    const playerIds = playerRows.map((p) => p.id);
-
-    // ── Progression data ──
+    // ── Progression map ──
     const progressionMap: Record<number, {
       overall: number; pace: number; shooting: number;
       passing: number; dribbling: number; defense: number; physical: number;
     }> = {};
 
-    if (playerIds.length > 0) {
-      const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
+    let playerRows: (typeof players.$inferSelect)[];
 
-      const progRows = await db
-        .select()
-        .from(progressions)
-        .where(
-          sql`${progressions.playerId} IN (${idsJoin}) AND ${progressions.interval} = ${interval}`
-        );
+    if (sortByProgression) {
+      // LEFT JOIN with progressions to sort by progression overall
+      const joinedRows = await db
+        .select({
+          id: players.id,
+          firstName: players.firstName,
+          lastName: players.lastName,
+          overall: players.overall,
+          age: players.age,
+          positions: players.positions,
+          nationalities: players.nationalities,
+          ownerAddress: players.ownerAddress,
+          ownerName: players.ownerName,
+          revenueShare: players.revenueShare,
+          clause: players.clause,
+          listingPrice: players.listingPrice,
+          updatedAt: players.updatedAt,
+          progOverall: progressions.overall,
+          progPace: progressions.pace,
+          progShooting: progressions.shooting,
+          progPassing: progressions.passing,
+          progDribbling: progressions.dribbling,
+          progDefense: progressions.defense,
+          progPhysical: progressions.physical,
+        })
+        .from(players)
+        .leftJoin(
+          progressions,
+          and(
+            eq(progressions.playerId, players.id),
+            eq(progressions.interval, interval),
+          ),
+        )
+        .where(whereClause)
+        .orderBy(
+          sortOrder === 'desc'
+            ? sql`COALESCE(${progressions.overall}, -2147483647) DESC`
+            : sql`COALESCE(${progressions.overall}, 2147483647) ASC`,
+        )
+        .limit(limit)
+        .offset(offset);
 
-      for (const row of progRows) {
-        progressionMap[row.playerId] = {
-          overall: row.overall ?? 0,
-          pace: row.pace ?? 0,
-          shooting: row.shooting ?? 0,
-          passing: row.passing ?? 0,
-          dribbling: row.dribbling ?? 0,
-          defense: row.defense ?? 0,
-          physical: row.physical ?? 0,
+      // Build progressionMap from joined data & extract player rows
+      playerRows = joinedRows.map((row) => {
+        if (row.progOverall !== null) {
+          progressionMap[row.id] = {
+            overall: row.progOverall ?? 0,
+            pace: row.progPace ?? 0,
+            shooting: row.progShooting ?? 0,
+            passing: row.progPassing ?? 0,
+            dribbling: row.progDribbling ?? 0,
+            defense: row.progDefense ?? 0,
+            physical: row.progPhysical ?? 0,
+          };
+        }
+        return {
+          id: row.id,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          overall: row.overall,
+          age: row.age,
+          positions: row.positions,
+          nationalities: row.nationalities,
+          ownerAddress: row.ownerAddress,
+          ownerName: row.ownerName,
+          revenueShare: row.revenueShare,
+          clause: row.clause,
+          listingPrice: row.listingPrice,
+          updatedAt: row.updatedAt,
         };
+      });
+    } else {
+      // Standard sort path
+      const sortColumn = (() => {
+        switch (sortBy) {
+          case 'id': return players.id;
+          case 'name':
+          case 'firstName': return players.firstName;
+          case 'lastName': return players.lastName;
+          case 'age': return players.age;
+          case 'ownerName': return players.ownerName;
+          case 'revenueShare': return players.revenueShare;
+          case 'clause': return players.clause;
+          case 'listingPrice': return players.listingPrice;
+          default: return players.overall;
+        }
+      })();
+
+      const orderFn = sortOrder === 'asc' ? asc : desc;
+
+      playerRows = await db
+        .select()
+        .from(players)
+        .where(whereClause)
+        .orderBy(orderFn(sortColumn))
+        .limit(limit)
+        .offset(offset);
+
+      // Fetch progression data separately
+      const playerIds = playerRows.map((p) => p.id);
+      if (playerIds.length > 0) {
+        const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
+
+        const progRows = await db
+          .select()
+          .from(progressions)
+          .where(
+            sql`${progressions.playerId} IN (${idsJoin}) AND ${progressions.interval} = ${interval}`
+          );
+
+        for (const row of progRows) {
+          progressionMap[row.playerId] = {
+            overall: row.overall ?? 0,
+            pace: row.pace ?? 0,
+            shooting: row.shooting ?? 0,
+            passing: row.passing ?? 0,
+            dribbling: row.dribbling ?? 0,
+            defense: row.defense ?? 0,
+            physical: row.physical ?? 0,
+          };
+        }
       }
     }
+
+    const playerIds = playerRows.map((p) => p.id);
 
     // ── Fetch absolute stats from MFL API for OVR calculation ──
     const statsMap = playerIds.length > 0 ? await fetchPlayersStats(playerIds) : {};

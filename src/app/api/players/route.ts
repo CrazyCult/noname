@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
   const interval = (searchParams.get('interval') as ProgressionInterval) || 'ALL';
   const progMinStr = searchParams.get('progMin') ?? '';
   const progMaxStr = searchParams.get('progMax') ?? '';
+  const hideDevCenter = searchParams.get('hideDevCenter') === 'true';
   const sortByProgression = sortBy === 'progression';
 
   try {
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
     if (maxOverall > 0) conditions.push(sql`${players.overall} <= ${maxOverall}`);
     if (minAge > 0) conditions.push(sql`${players.age} >= ${minAge}`);
     if (maxAge > 0) conditions.push(sql`${players.age} <= ${maxAge}`);
+    if (hideDevCenter) conditions.push(sql`${players.isDevCenter} = false`);
     if (progMinStr !== '') {
       conditions.push(
         sql`${players.id} IN (SELECT player_id FROM progressions WHERE \`interval\` = ${interval} AND overall >= ${Number(progMinStr)})`
@@ -93,6 +95,7 @@ export async function GET(request: NextRequest) {
           defense: players.defense,
           physical: players.physical,
           goalkeeping: players.goalkeeping,
+          isDevCenter: players.isDevCenter,
           updatedAt: players.updatedAt,
           progOverall: progressions.overall,
           progPace: progressions.pace,
@@ -148,6 +151,7 @@ export async function GET(request: NextRequest) {
           defense: row.defense,
           physical: row.physical,
           goalkeeping: row.goalkeeping,
+          isDevCenter: row.isDevCenter,
           updatedAt: row.updatedAt,
         };
       });
@@ -167,13 +171,11 @@ export async function GET(request: NextRequest) {
         }
       })();
 
-      const orderFn = sortOrder === 'asc' ? asc : desc;
-
       playerRows = await db
         .select()
         .from(players)
         .where(whereClause)
-        .orderBy(orderFn(sortColumn))
+        .orderBy(sortOrder === 'asc' ? asc(sortColumn) : desc(sortColumn))
         .limit(limit)
         .offset(offset);
 
@@ -199,12 +201,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Build response — tout depuis la DB, zéro appel MFL ──
+    // ── Build response ──
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
       const positions = (p.positions as string[]) ?? [];
-
-      // Stats depuis la DB (colonnes ajoutées au crawl)
       const statsFromDb = (p as any).pace != null ? {
         pace: (p as any).pace ?? 0,
         shooting: (p as any).shooting ?? 0,
@@ -229,6 +229,7 @@ export async function GET(request: NextRequest) {
         revenueShare: p.revenueShare ?? 0,
         clause: p.clause ?? 0,
         listingPrice: p.listingPrice ?? null,
+        isDevCenter: (p as any).isDevCenter ?? false,
         progression: prog || undefined,
         positionOvrs: positionOvrs.map(({ position, ovr }) => ({ position, ovr })),
       };

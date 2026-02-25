@@ -6,6 +6,7 @@ import {
   timestamp,
   index,
   primaryKey,
+  boolean,
 } from 'drizzle-orm/mysql-core';
 
 export const players = mysqlTable(
@@ -23,7 +24,6 @@ export const players = mysqlTable(
     revenueShare: int('revenue_share').default(0),
     clause: int('clause').default(0),
     listingPrice: int('listing_price'),
-    // ── Stats détaillées (pour calcul OVR postes secondaires) ──
     pace: int('pace').default(0),
     shooting: int('shooting').default(0),
     passing: int('passing').default(0),
@@ -31,6 +31,7 @@ export const players = mysqlTable(
     defense: int('defense').default(0),
     physical: int('physical').default(0),
     goalkeeping: int('goalkeeping').default(0),
+    isDevCenter: boolean('is_dev_center').default(false),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
   },
   (table) => ({
@@ -38,6 +39,7 @@ export const players = mysqlTable(
     ageIdx: index('age_idx').on(table.age),
     revenueShareIdx: index('revenue_share_idx').on(table.revenueShare),
     listingPriceIdx: index('listing_price_idx').on(table.listingPrice),
+    isDevCenterIdx: index('is_dev_center_idx').on(table.isDevCenter),
   })
 );
 

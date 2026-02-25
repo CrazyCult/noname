@@ -13,14 +13,10 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Search, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, Loader2,
-  ExternalLink, RotateCcw, ShoppingCart,
+  ExternalLink, RotateCcw, ShoppingCart, EyeOff,
 } from 'lucide-react';
 import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
 import { countryToFlag } from '@/lib/country-codes';
-
-/* ════════════════════════════════════════════════════
-   POSITIONS MFL
-   ════════════════════════════════════════════════════ */
 
 const ALL_POSITIONS = [
   { group: 'Gardien', items: ['GK'] },
@@ -29,14 +25,26 @@ const ALL_POSITIONS = [
   { group: 'Attaquants', items: ['RW', 'LW', 'CF', 'ST'] },
 ];
 
-/* ════════════════════════════════════════════════════
-   SOUS-COMPOSANTS
-   ════════════════════════════════════════════════════ */
+const ATTR_KEYS: { label: string; key: keyof MflProgression }[] = [
+  { label: 'PAC', key: 'pace' },
+  { label: 'TIR', key: 'shooting' },
+  { label: 'PAS', key: 'passing' },
+  { label: 'DRI', key: 'dribbling' },
+  { label: 'DEF', key: 'defense' },
+  { label: 'PHY', key: 'physical' },
+];
+
+const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
+  { label: 'OVR', key: 'overall' },
+  ...ATTR_KEYS,
+];
 
 interface ApiResponse {
   data: PlayerRow[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
+
+/* ── Sous-composants ── */
 
 function CountryFlag({ name }: { name: string }) {
   const { emoji, code } = countryToFlag(name);
@@ -55,29 +63,25 @@ function ProgressionBadge({ value }: { value: number }) {
       <TrendingDown size={11} />{value}
     </span>
   );
-  return (
-    <span className="inline-flex items-center text-zinc-600 text-[11px]">
-      <Minus size={11} />
-    </span>
-  );
+  return <span className="inline-flex items-center text-zinc-600 text-[11px]"><Minus size={11} /></span>;
 }
 
 const POS_COLORS: Record<string, string> = {
-  GK:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  CB:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-  RB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  LB:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  GK: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  CB: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  RB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  LB: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   RWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   LWB: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   CDM: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  CM:  'bg-green-500/20 text-green-300 border-green-500/30',
+  CM: 'bg-green-500/20 text-green-300 border-green-500/30',
   CAM: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  RM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  LM:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  RW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  LW:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  CF:  'bg-red-500/20 text-red-300 border-red-500/30',
-  ST:  'bg-red-500/20 text-red-300 border-red-500/30',
+  RM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  LM: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  RW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  LW: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  CF: 'bg-red-500/20 text-red-300 border-red-500/30',
+  ST: 'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
 function PositionWithOvr({ position, ovr, isPrimary }: { position: string; ovr: number; isPrimary: boolean }) {
@@ -100,16 +104,6 @@ function OverallBadge({ value }: { value: number }) {
   return <span className={`font-bold text-base ${color}`}>{value}</span>;
 }
 
-const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
-  { label: 'OVR', key: 'overall' },
-  { label: 'PAC', key: 'pace' },
-  { label: 'TIR', key: 'shooting' },
-  { label: 'PAS', key: 'passing' },
-  { label: 'DRI', key: 'dribbling' },
-  { label: 'DEF', key: 'defense' },
-  { label: 'PHY', key: 'physical' },
-];
-
 function FilterInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <input
@@ -119,6 +113,23 @@ function FilterInput({ value, onChange, placeholder }: { value: string; onChange
       onChange={(e) => onChange(e.target.value)}
       className="w-16 bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
     />
+  );
+}
+
+function ToggleChip({
+  active, onClick, children, activeClass = 'bg-orange-500/15 text-orange-300 border-orange-500/30',
+}: {
+  active: boolean; onClick: () => void; children: React.ReactNode; activeClass?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1.5 text-[11px] inline-flex items-center gap-1.5 rounded-md border transition-all font-medium select-none ${
+        active ? activeClass : 'bg-white/5 text-zinc-400 border-white/10 hover:text-zinc-200 hover:border-white/20'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -143,7 +154,7 @@ export default function PlayerTable() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  // Filtres
+  // Filtres serveur
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [position, setPosition] = useState('');
@@ -154,50 +165,63 @@ export default function PlayerTable() {
   const [ovrMax, setOvrMax] = useState('');
   const [progMin, setProgMin] = useState('');
   const [progMax, setProgMax] = useState('');
+  const [hideDevCenter, setHideDevCenter] = useState(false);
+
+  // Filtres client
+  const [showOnlyForSale, setShowOnlyForSale] = useState(false);
+  const [attrFilters, setAttrFilters] = useState<Set<keyof MflProgression>>(new Set());
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
 
-  // ── Ventes à la demande ──
+  // Ventes
   const [listings, setListings] = useState<Record<number, number | null>>({});
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [checkingListings, setCheckingListings] = useState(false);
   const [listingsChecked, setListingsChecked] = useState(false);
 
-  const hasFilters = !!(search || position || ageMin || ageMax || ovrMin || ovrMax || progMin || progMax);
+  const hasFilters = !!(
+    search || position || ageMin || ageMax || ovrMin || ovrMax ||
+    progMin || progMax || hideDevCenter || showOnlyForSale || attrFilters.size > 0
+  );
 
   const resetFilters = () => {
-    setSearch('');
-    setPosition('');
-    setAgeMin('');
-    setAgeMax('');
-    setOvrMin('');
-    setOvrMax('');
-    setProgMin('');
-    setProgMax('');
+    setSearch(''); setPosition('');
+    setAgeMin(''); setAgeMax('');
+    setOvrMin(''); setOvrMax('');
+    setProgMin(''); setProgMax('');
+    setHideDevCenter(false);
+    setShowOnlyForSale(false);
+    setAttrFilters(new Set());
     setSorting([{ id: 'overall', desc: true }]);
   };
 
-  // Debounce recherche
+  const toggleAttr = (key: keyof MflProgression) => {
+    setAttrFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Réinitialiser listings quand page/filtres changent
+  // Reset ventes quand données changent
   useEffect(() => {
     setListings({});
     setCheckedIds(new Set());
     setListingsChecked(false);
-  }, [page, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
+    setShowOnlyForSale(false);
+  }, [page, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax, hideDevCenter]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const sortBy = sorting[0]?.id || 'overall';
       const sortOrder = sorting[0]?.desc ? 'desc' : 'asc';
-      const params = new URLSearchParams({
-        page: String(page), limit: '50', sortBy, sortOrder, interval,
-      });
+      const params = new URLSearchParams({ page: String(page), limit: '50', sortBy, sortOrder, interval });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (position) params.set('position', position);
       if (ageMin) params.set('ageMin', ageMin);
@@ -206,6 +230,7 @@ export default function PlayerTable() {
       if (ovrMax) params.set('ovrMax', ovrMax);
       if (progMin) params.set('progMin', progMin);
       if (progMax) params.set('progMax', progMax);
+      if (hideDevCenter) params.set('hideDevCenter', 'true');
 
       const res = await fetch(`/api/players?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -218,11 +243,10 @@ export default function PlayerTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
+  }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax, hideDevCenter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Vérification des ventes ──
   const checkListings = useCallback(async () => {
     if (checkingListings || data.length === 0) return;
     setCheckingListings(true);
@@ -253,13 +277,28 @@ export default function PlayerTable() {
     }
   }, [data, checkedIds, checkingListings]);
 
-  // ── Colonnes (dans le composant pour accéder à listings/checkedIds) ──
+  // ── Filtre client : ventes + attributs ──
+  const filteredData = data.filter((p) => {
+    if (showOnlyForSale && listingsChecked) {
+      const price = listings[p.id] !== undefined ? listings[p.id] : p.listingPrice;
+      if (price == null) return false;
+    }
+    if (attrFilters.size > 0 && p.progression) {
+      const match = Array.from(attrFilters).some((key) => (p.progression![key] ?? 0) > 0);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const forSaleCount = data.filter(
+    (p) => checkedIds.has(p.id) && (listings[p.id] ?? p.listingPrice) != null
+  ).length;
+
+  // ── Colonnes ──
   const columns = [
     columnHelper.accessor('id', {
       header: 'ID',
-      cell: (info) => (
-        <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>
-      ),
+      cell: (info) => <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>,
     }),
 
     columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
@@ -269,15 +308,22 @@ export default function PlayerTable() {
         const row = info.row.original;
         return (
           <div className="min-w-[180px]">
-            <a
-              href={`https://app.playmfl.com/fr/players/${row.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-white hover:text-orange-400 transition-colors inline-flex items-center gap-1 group"
-            >
-              {row.firstName} {row.lastName}
-              <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
-            </a>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <a
+                href={`https://app.playmfl.com/fr/players/${row.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-white hover:text-orange-400 transition-colors inline-flex items-center gap-1 group"
+              >
+                {row.firstName} {row.lastName}
+                <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+              </a>
+              {row.isDevCenter && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-500/70 border border-yellow-500/20 font-medium tracking-wide">
+                  DEV
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1 mt-1">
               {row.positionOvrs.map(({ position, ovr }, i) => (
                 <PositionWithOvr key={position} position={position} ovr={ovr} isPrimary={i === 0} />
@@ -303,11 +349,7 @@ export default function PlayerTable() {
       cell: (info) => {
         const nats = info.getValue();
         if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
-        return (
-          <div className="flex items-center gap-1">
-            {nats.map((name) => <CountryFlag key={name} name={name} />)}
-          </div>
-        );
+        return <div className="flex items-center gap-1">{nats.map((n) => <CountryFlag key={n} name={n} />)}</div>;
       },
       enableSorting: false,
     }),
@@ -327,9 +369,7 @@ export default function PlayerTable() {
         const row = info.row.original;
         const rs = row.revenueShare / 100;
         const clause = row.clause / 100;
-        if (rs === 0 && clause === 0) {
-          return <span className="text-zinc-600 text-xs">0%</span>;
-        }
+        if (rs === 0 && clause === 0) return <span className="text-zinc-600 text-xs">0%</span>;
         return (
           <span className="text-xs font-medium text-amber-400">
             {rs}{clause > 0 ? <span className="text-orange-400">+{clause}</span> : ''}%
@@ -342,21 +382,11 @@ export default function PlayerTable() {
       header: 'Vente',
       cell: (info) => {
         const id = info.row.original.id;
-
-        // Pas encore vérifié
-        if (!checkedIds.has(id)) {
-          return <span className="text-zinc-700 text-[10px]">—</span>;
-        }
-
-        // Vérifié : prix depuis le state listings (override) ou la row
+        if (!checkedIds.has(id)) return <span className="text-zinc-700 text-[10px]">—</span>;
         const price = listings[id] !== undefined ? listings[id] : info.getValue();
-
-        if (price == null) {
-          return <span className="text-zinc-600 text-[10px]">Aucune Offre</span>;
-        }
-
+        if (price == null) return <span className="text-zinc-600 text-[10px]">Non dispo</span>;
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse-once">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             {price.toLocaleString()} $
           </span>
         );
@@ -370,23 +400,30 @@ export default function PlayerTable() {
         if (!prog) return <span className="text-zinc-600 text-xs">N/A</span>;
         return (
           <div className="flex items-center gap-2.5">
-            {PROG_KEYS.map(({ label, key }) => (
-              <div key={key} className="flex flex-col items-center min-w-[28px]">
-                <span className="text-[8px] text-zinc-600 uppercase leading-none mb-0.5">{label}</span>
-                <ProgressionBadge value={prog[key]} />
-              </div>
-            ))}
+            {PROG_KEYS.map(({ label, key }) => {
+              const highlighted = key !== 'overall' && attrFilters.has(key);
+              return (
+                <div
+                  key={key}
+                  className={`flex flex-col items-center min-w-[28px] transition-all ${
+                    highlighted ? 'ring-1 ring-orange-500/50 rounded px-0.5 bg-orange-500/5' : ''
+                  }`}
+                >
+                  <span className={`text-[8px] uppercase leading-none mb-0.5 ${highlighted ? 'text-orange-400' : 'text-zinc-600'}`}>
+                    {label}
+                  </span>
+                  <ProgressionBadge value={prog[key]} />
+                </div>
+              );
+            })}
           </div>
         );
       },
     }),
   ];
 
-  // ── Nb de joueurs en vente sur la page ──
-  const forSaleCount = data.filter((p) => checkedIds.has(p.id) && listings[p.id] != null).length;
-
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -400,9 +437,9 @@ export default function PlayerTable() {
     <div className="space-y-4">
       {/* ── FILTRES ── */}
       <div className="glass-card p-4 space-y-3">
-        {/* Ligne 1 : Recherche + Position + Intervalles */}
+
+        {/* Ligne 1 */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Recherche */}
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
@@ -414,7 +451,6 @@ export default function PlayerTable() {
             />
           </div>
 
-          {/* Position */}
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
@@ -423,23 +459,18 @@ export default function PlayerTable() {
             <option value="">Toutes positions</option>
             {ALL_POSITIONS.map((group) => (
               <optgroup key={group.group} label={group.group}>
-                {group.items.map((pos) => (
-                  <option key={pos} value={pos}>{pos}</option>
-                ))}
+                {group.items.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
               </optgroup>
             ))}
           </select>
 
-          {/* Intervalles */}
           <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-1 border border-white/[0.06]">
             {INTERVALS.map((int) => (
               <button
                 key={int.value}
                 onClick={() => setInterval(int.value)}
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  interval === int.value
-                    ? 'bg-orange-500/25 text-orange-300 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                  interval === int.value ? 'bg-orange-500/25 text-orange-300' : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
                 {int.label}
@@ -448,7 +479,7 @@ export default function PlayerTable() {
           </div>
         </div>
 
-        {/* Ligne 2 : Filtres plage + Reset + Bouton ventes + Total */}
+        {/* Ligne 2 */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Âge</span>
@@ -456,39 +487,51 @@ export default function PlayerTable() {
             <span className="text-zinc-600 text-xs">-</span>
             <FilterInput value={ageMax} onChange={setAgeMax} placeholder="max" />
           </div>
-
           <div className="w-px h-5 bg-white/10" />
-
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">OVR</span>
             <FilterInput value={ovrMin} onChange={setOvrMin} placeholder="min" />
             <span className="text-zinc-600 text-xs">-</span>
             <FilterInput value={ovrMax} onChange={setOvrMax} placeholder="max" />
           </div>
-
           <div className="w-px h-5 bg-white/10" />
-
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog OVR</span>
             <FilterInput value={progMin} onChange={setProgMin} placeholder="min" />
             <span className="text-zinc-600 text-xs">-</span>
             <FilterInput value={progMax} onChange={setProgMax} placeholder="max" />
           </div>
-
           <div className="w-px h-5 bg-white/10" />
-
           <button
             onClick={resetFilters}
             disabled={!hasFilters}
             className="glass-button px-2.5 py-1.5 text-[11px] inline-flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-400 hover:text-orange-400"
           >
-            <RotateCcw size={12} />
-            Réinitialiser
+            <RotateCcw size={12} />Réinitialiser
           </button>
+          <div className="ml-auto text-zinc-500 text-sm">
+            <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> joueurs
+            {filteredData.length < data.length && (
+              <span className="text-zinc-600 ml-1">(affichés : {filteredData.length})</span>
+            )}
+          </div>
+        </div>
+
+        {/* Ligne 3 — toggles */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/[0.05]">
+
+          {/* Masquer Dev Center */}
+          <ToggleChip
+            active={hideDevCenter}
+            onClick={() => setHideDevCenter((v) => !v)}
+            activeClass="bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+          >
+            <EyeOff size={12} />Masquer Dev Center
+          </ToggleChip>
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Bouton vérifier les ventes */}
+          {/* Vérifier + filtre en vente */}
           <button
             onClick={checkListings}
             disabled={checkingListings || loading || data.length === 0}
@@ -498,20 +541,34 @@ export default function PlayerTable() {
                 : 'bg-white/5 text-zinc-300 border-white/10 hover:text-emerald-400 hover:border-emerald-500/30'
             }`}
           >
-            {checkingListings ? (
-              <><Loader2 size={12} className="animate-spin" />Vérification...</>
-            ) : (
-              <><ShoppingCart size={12} />
-              {listingsChecked
-                ? `${forSaleCount} en vente`
-                : 'Vérifier les ventes'
-              }</>
-            )}
+            {checkingListings
+              ? <><Loader2 size={12} className="animate-spin" />Vérification...</>
+              : listingsChecked
+                ? <><ShoppingCart size={12} />{forSaleCount} en vente</>
+                : <><ShoppingCart size={12} />Vérifier les ventes</>
+            }
           </button>
 
-          <div className="ml-auto text-zinc-500 text-sm">
-            <span className="text-orange-400 font-semibold">{total.toLocaleString()}</span> joueurs
-          </div>
+          {listingsChecked && (
+            <ToggleChip
+              active={showOnlyForSale}
+              onClick={() => setShowOnlyForSale((v) => !v)}
+              activeClass="bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+            >
+              <ShoppingCart size={12} />
+              {showOnlyForSale ? `Affichage : en vente (${forSaleCount})` : 'Afficher seulement en vente'}
+            </ToggleChip>
+          )}
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Filtres attributs UP */}
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Prog attr :</span>
+          {ATTR_KEYS.map(({ label, key }) => (
+            <ToggleChip key={key} active={attrFilters.has(key)} onClick={() => toggleAttr(key)}>
+              {label} ↑
+            </ToggleChip>
+          ))}
         </div>
       </div>
 
@@ -523,10 +580,7 @@ export default function PlayerTable() {
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id} className="border-b border-white/10 bg-white/[0.02]">
                   {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="text-left px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider whitespace-nowrap"
-                    >
+                    <th key={header.id} className="text-left px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider whitespace-nowrap">
                       {header.isPlaceholder ? null : (
                         <div
                           className={header.column.getCanSort() ? 'cursor-pointer select-none flex items-center gap-1 hover:text-zinc-300 transition-colors' : ''}
@@ -569,8 +623,8 @@ export default function PlayerTable() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ delay: index * 0.015, duration: 0.2 }}
-                      className={`border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors ${
-                        checkedIds.has(row.original.id) && listings[row.original.id] != null
+                      className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.03] ${
+                        checkedIds.has(row.original.id) && (listings[row.original.id] ?? row.original.listingPrice) != null
                           ? 'bg-emerald-500/[0.04]'
                           : ''
                       }`}
@@ -595,18 +649,10 @@ export default function PlayerTable() {
           Page <span className="text-orange-400 font-medium">{page}</span> / {totalPages}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronLeft size={16} />
           </button>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="glass-button p-2 disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronRight size={16} />
           </button>
         </div>

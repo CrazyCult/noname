@@ -379,7 +379,7 @@ export default function PlayerTable({
           </div>
 
           <select value={position} onChange={(e) => setPosition(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/50 transition-colors">
+            className="bg-zinc-900 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/50 transition-colors [&>option]:bg-zinc-900 [&>option]:text-white [&>optgroup]:bg-zinc-900 [&>optgroup]:text-zinc-400">
             <option value="">Toutes positions</option>
             {ALL_POSITIONS.map((group) => (
               <optgroup key={group.group} label={group.group}>

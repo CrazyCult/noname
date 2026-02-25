@@ -12,6 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "crawl:players": "tsx src/scripts/crawl-players.ts",
     "crawl:progressions": "tsx src/scripts/crawl-progressions.ts",
+    "crawl:progressions:daily": "tsx src/scripts/crawl-progressions.ts",
+    "crawl:progressions:all": "tsx src/scripts/crawl-progressions.ts --all",
     "crawl:snapshots": "tsx src/scripts/crawl-snapshots.ts"
   },
   "dependencies": {

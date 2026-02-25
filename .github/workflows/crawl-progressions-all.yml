@@ -35,7 +35,7 @@ jobs:
             console.log('✅ DB connected:', rows[0]);
             await conn.end();
           }
-          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
+          test().catch(e => { console.error('❌ DB error:', e.message, '| code:', e.code, '| host:', process.env.DB_HOST, '| port:', process.env.DB_PORT, '| user:', process.env.DB_USER, '| db:', process.env.DB_NAME); process.exit(1); });
           "
         env:
           DB_HOST: ${{ secrets.DB_HOST }}

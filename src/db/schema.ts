@@ -23,6 +23,14 @@ export const players = mysqlTable(
     revenueShare: int('revenue_share').default(0),
     clause: int('clause').default(0),
     listingPrice: int('listing_price'),
+    // ── Stats détaillées (pour calcul OVR postes secondaires) ──
+    pace: int('pace').default(0),
+    shooting: int('shooting').default(0),
+    passing: int('passing').default(0),
+    dribbling: int('dribbling').default(0),
+    defense: int('defense').default(0),
+    physical: int('physical').default(0),
+    goalkeeping: int('goalkeeping').default(0),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
   },
   (table) => ({
@@ -56,7 +64,6 @@ export const progressions = mysqlTable(
   })
 );
 
-// NOUVELLE TABLE - Snapshots historiques des stats joueurs
 export const playerSnapshots = mysqlTable(
   'player_snapshots',
   {

@@ -100,6 +100,7 @@ async function crawlInterval(
   const startTime = Date.now();
   let processed = 0;
   let skipped = 0;
+  let inserted = 0;
   let failed = 0;
 
   console.log(`\n${'='.repeat(60)}`);
@@ -132,20 +133,27 @@ async function crawlInterval(
     }
 
     if (values.length > 0) {
-      await db
-        .insert(progressions)
-        .values(values)
-        .onDuplicateKeyUpdate({
-          set: {
-            overall: sql`VALUES(${progressions.overall})`,
-            pace: sql`VALUES(${progressions.pace})`,
-            shooting: sql`VALUES(${progressions.shooting})`,
-            passing: sql`VALUES(${progressions.passing})`,
-            dribbling: sql`VALUES(${progressions.dribbling})`,
-            defense: sql`VALUES(${progressions.defense})`,
-            physical: sql`VALUES(${progressions.physical})`,
-          },
-        });
+      try {
+        await db
+          .insert(progressions)
+          .values(values)
+          .onDuplicateKeyUpdate({
+            set: {
+              overall: sql`VALUES(${sql.raw('`overall`')})`,
+              pace: sql`VALUES(${sql.raw('`pace`')})`,
+              shooting: sql`VALUES(${sql.raw('`shooting`')})`,
+              passing: sql`VALUES(${sql.raw('`passing`')})`,
+              dribbling: sql`VALUES(${sql.raw('`dribbling`')})`,
+              defense: sql`VALUES(${sql.raw('`defense`')})`,
+              physical: sql`VALUES(${sql.raw('`physical`')})`,
+            },
+          });
+        inserted += values.length;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`  [DB ERROR] ${interval} batch ${batchNum}: ${msg}`);
+        failed += values.length;
+      }
     }
 
     if (Object.keys(data).length === 0 && batch.length > 0) {
@@ -174,10 +182,19 @@ async function crawlInterval(
   }
 
   const durationMs = Date.now() - startTime;
+
+  // Verify what's actually in the DB
+  const dbCount = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(progressions)
+    .where(sql`${progressions.interval} = ${interval}`);
+  const actualCount = dbCount[0].count;
+
   console.log(
     `[${interval}] Done in ${formatDuration(durationMs)} — ` +
-      `${processed} processed, ${skipped} skipped, ${failed} failed`
+      `${processed} processed, ${inserted} inserted, ${skipped} skipped, ${failed} failed`
   );
+  console.log(`[${interval}] DB verification: ${actualCount} rows in progressions table`);
 
   return { processed, skipped, failed, durationMs };
 }

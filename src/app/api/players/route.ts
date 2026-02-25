@@ -205,12 +205,19 @@ export async function GET(request: NextRequest) {
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
       const positions = (p.positions as string[]) ?? [];
-      const statsFromDb = (p as any).pace != null ? {
-        pace: (p as any).pace ?? 0,
-        shooting: (p as any).shooting ?? 0,
+
+      // ── FIX : null si stats toutes à 0 (pas encore crawlées) ──
+      const pace = (p as any).pace ?? 0;
+      const shooting = (p as any).shooting ?? 0;
+      const defense = (p as any).defense ?? 0;
+      const hasRealStats = pace > 0 || shooting > 0 || defense > 0;
+
+      const statsFromDb = hasRealStats ? {
+        pace,
+        shooting,
         passing: (p as any).passing ?? 0,
         dribbling: (p as any).dribbling ?? 0,
-        defense: (p as any).defense ?? 0,
+        defense,
         physical: (p as any).physical ?? 0,
         goalkeeping: (p as any).goalkeeping ?? 0,
       } : null;

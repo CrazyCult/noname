@@ -13,13 +13,13 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown,
   Search, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, Loader2,
-  ExternalLink, RotateCcw,
+  ExternalLink, RotateCcw, ShoppingCart,
 } from 'lucide-react';
 import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
 import { countryToFlag } from '@/lib/country-codes';
 
 /* ════════════════════════════════════════════════════
-   POSITIONS MFL (EN — format API)
+   POSITIONS MFL
    ════════════════════════════════════════════════════ */
 
 const ALL_POSITIONS = [
@@ -80,18 +80,12 @@ const POS_COLORS: Record<string, string> = {
   ST:  'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
-function PositionWithOvr({
-  position, ovr, isPrimary,
-}: {
-  position: string; ovr: number; isPrimary: boolean;
-}) {
+function PositionWithOvr({ position, ovr, isPrimary }: { position: string; ovr: number; isPrimary: boolean }) {
   const colors = POS_COLORS[position] || 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30';
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors} ${!isPrimary ? 'opacity-75' : ''}`}>
       {position}
-      <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>
-        {ovr}
-      </span>
+      <span className={`${isPrimary ? 'text-white' : 'text-zinc-400'} font-normal text-[9px]`}>{ovr}</span>
     </span>
   );
 }
@@ -106,10 +100,6 @@ function OverallBadge({ value }: { value: number }) {
   return <span className={`font-bold text-base ${color}`}>{value}</span>;
 }
 
-/* ════════════════════════════════════════════════════
-   COLONNES PROGRESSION
-   ════════════════════════════════════════════════════ */
-
 const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'OVR', key: 'overall' },
   { label: 'PAC', key: 'pace' },
@@ -120,152 +110,7 @@ const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'PHY', key: 'physical' },
 ];
 
-/* ════════════════════════════════════════════════════
-   COLONNES DU TABLEAU
-   ════════════════════════════════════════════════════ */
-
-const columnHelper = createColumnHelper<PlayerRow>();
-
-const columns = [
-  columnHelper.accessor('id', {
-    header: 'ID',
-    cell: (info) => (
-      <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>
-    ),
-  }),
-
-  columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
-    id: 'name',
-    header: 'Joueur',
-    cell: (info) => {
-      const row = info.row.original;
-
-      return (
-        <div className="min-w-[180px]">
-          <a
-            href={`https://app.playmfl.com/fr/players/${row.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-white hover:text-orange-400 transition-colors inline-flex items-center gap-1 group"
-          >
-            {row.firstName} {row.lastName}
-            <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
-          </a>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {row.positionOvrs.map(({ position, ovr }, i) => (
-              <PositionWithOvr key={position} position={position} ovr={ovr} isPrimary={i === 0} />
-            ))}
-          </div>
-        </div>
-      );
-    },
-  }),
-
-  columnHelper.accessor('overall', {
-    header: 'OVR',
-    cell: (info) => <OverallBadge value={info.getValue()} />,
-  }),
-
-  columnHelper.accessor('age', {
-    header: 'Âge',
-    cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
-  }),
-
-  columnHelper.accessor('nationalities', {
-    header: 'Nat',
-    cell: (info) => {
-      const nats = info.getValue();
-      if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
-      return (
-        <div className="flex items-center gap-1">
-          {nats.map((name) => <CountryFlag key={name} name={name} />)}
-        </div>
-      );
-    },
-    enableSorting: false,
-  }),
-
-  columnHelper.accessor('ownerName', {
-    header: 'Propriétaire',
-    cell: (info) => (
-      <span className="text-zinc-400 text-sm truncate max-w-[140px] block">
-        {info.getValue() || <span className="text-zinc-600 italic">Agent libre</span>}
-      </span>
-    ),
-  }),
-
-  columnHelper.accessor('revenueShare', {
-    header: 'RS%',
-    cell: (info) => {
-      const row = info.row.original;
-      const rs = row.revenueShare / 100;
-      const clause = row.clause / 100;
-      if (rs === 0 && clause === 0) {
-        return <span className="text-zinc-600 text-xs">0%</span>;
-      }
-      return (
-        <span className="text-xs font-medium text-amber-400">
-          {rs}{clause > 0 ? <span className="text-orange-400">+{clause}</span> : ''}%
-        </span>
-      );
-    },
-  }),
-
-  columnHelper.accessor('listingPrice', {
-    header: 'Vente',
-    cell: (info) => {
-      const price = info.getValue();
-      if (price == null) {
-        return <span className="text-zinc-700 text-[10px]">—</span>;
-      }
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-          {price.toLocaleString()} $
-        </span>
-      );
-    },
-  }),
-
-  columnHelper.accessor('progression', {
-    header: 'Progression',
-    cell: (info) => {
-      const prog = info.getValue();
-      if (!prog) return <span className="text-zinc-600 text-xs">N/A</span>;
-      return (
-        <div className="flex items-center gap-2.5">
-          {PROG_KEYS.map(({ label, key }) => (
-            <div key={key} className="flex flex-col items-center min-w-[28px]">
-              <span className="text-[8px] text-zinc-600 uppercase leading-none mb-0.5">{label}</span>
-              <ProgressionBadge value={prog[key]} />
-            </div>
-          ))}
-        </div>
-      );
-    },
-  }),
-];
-
-/* ════════════════════════════════════════════════════
-   INTERVALLES
-   ════════════════════════════════════════════════════ */
-
-const INTERVALS: { label: string; value: ProgressionInterval }[] = [
-  { label: '24H', value: '24H' },
-  { label: 'Semaine', value: 'WEEK' },
-  { label: 'Mois', value: 'MONTH' },
-  { label: 'Saison', value: 'CURRENT_SEASON' },
-  { label: 'Total', value: 'ALL' },
-];
-
-/* ════════════════════════════════════════════════════
-   INPUT FILTRE
-   ════════════════════════════════════════════════════ */
-
-function FilterInput({
-  value, onChange, placeholder,
-}: {
-  value: string; onChange: (v: string) => void; placeholder: string;
-}) {
+function FilterInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <input
       type="number"
@@ -276,6 +121,16 @@ function FilterInput({
     />
   );
 }
+
+const columnHelper = createColumnHelper<PlayerRow>();
+
+const INTERVALS: { label: string; value: ProgressionInterval }[] = [
+  { label: '24H', value: '24H' },
+  { label: 'Semaine', value: 'WEEK' },
+  { label: 'Mois', value: 'MONTH' },
+  { label: 'Saison', value: 'CURRENT_SEASON' },
+  { label: 'Total', value: 'ALL' },
+];
 
 /* ════════════════════════════════════════════════════
    COMPOSANT PRINCIPAL
@@ -302,6 +157,12 @@ export default function PlayerTable() {
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'overall', desc: true }]);
 
+  // ── Ventes à la demande ──
+  const [listings, setListings] = useState<Record<number, number | null>>({});
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [checkingListings, setCheckingListings] = useState(false);
+  const [listingsChecked, setListingsChecked] = useState(false);
+
   const hasFilters = !!(search || position || ageMin || ageMax || ovrMin || ovrMax || progMin || progMax);
 
   const resetFilters = () => {
@@ -321,6 +182,13 @@ export default function PlayerTable() {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Réinitialiser listings quand page/filtres changent
+  useEffect(() => {
+    setListings({});
+    setCheckedIds(new Set());
+    setListingsChecked(false);
+  }, [page, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -353,7 +221,169 @@ export default function PlayerTable() {
   }, [page, sorting, debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [debouncedSearch, position, interval, ageMin, ageMax, ovrMin, ovrMax, progMin, progMax]);
+
+  // ── Vérification des ventes ──
+  const checkListings = useCallback(async () => {
+    if (checkingListings || data.length === 0) return;
+    setCheckingListings(true);
+    try {
+      const ids = data.map((p) => p.id);
+      const res = await fetch('/api/players/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error('listings fetch failed');
+      const json = await res.json();
+      const newListings: Record<number, number | null> = {};
+      const newChecked = new Set(checkedIds);
+      for (const r of json.results) {
+        if (r.playerId) {
+          newListings[r.playerId] = r.listingPrice;
+          newChecked.add(r.playerId);
+        }
+      }
+      setListings((prev) => ({ ...prev, ...newListings }));
+      setCheckedIds(newChecked);
+      setListingsChecked(true);
+    } catch (err) {
+      console.error('checkListings error:', err);
+    } finally {
+      setCheckingListings(false);
+    }
+  }, [data, checkedIds, checkingListings]);
+
+  // ── Colonnes (dans le composant pour accéder à listings/checkedIds) ──
+  const columns = [
+    columnHelper.accessor('id', {
+      header: 'ID',
+      cell: (info) => (
+        <span className="text-zinc-500 text-xs font-mono">{info.getValue()}</span>
+      ),
+    }),
+
+    columnHelper.accessor((row) => `${row.firstName} ${row.lastName}`, {
+      id: 'name',
+      header: 'Joueur',
+      cell: (info) => {
+        const row = info.row.original;
+        return (
+          <div className="min-w-[180px]">
+            <a
+              href={`https://app.playmfl.com/fr/players/${row.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-white hover:text-orange-400 transition-colors inline-flex items-center gap-1 group"
+            >
+              {row.firstName} {row.lastName}
+              <ExternalLink size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+            </a>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {row.positionOvrs.map(({ position, ovr }, i) => (
+                <PositionWithOvr key={position} position={position} ovr={ovr} isPrimary={i === 0} />
+              ))}
+            </div>
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor('overall', {
+      header: 'OVR',
+      cell: (info) => <OverallBadge value={info.getValue()} />,
+    }),
+
+    columnHelper.accessor('age', {
+      header: 'Âge',
+      cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
+    }),
+
+    columnHelper.accessor('nationalities', {
+      header: 'Nat',
+      cell: (info) => {
+        const nats = info.getValue();
+        if (!nats || nats.length === 0) return <span className="text-zinc-600">-</span>;
+        return (
+          <div className="flex items-center gap-1">
+            {nats.map((name) => <CountryFlag key={name} name={name} />)}
+          </div>
+        );
+      },
+      enableSorting: false,
+    }),
+
+    columnHelper.accessor('ownerName', {
+      header: 'Propriétaire',
+      cell: (info) => (
+        <span className="text-zinc-400 text-sm truncate max-w-[140px] block">
+          {info.getValue() || <span className="text-zinc-600 italic">Agent libre</span>}
+        </span>
+      ),
+    }),
+
+    columnHelper.accessor('revenueShare', {
+      header: 'RS%',
+      cell: (info) => {
+        const row = info.row.original;
+        const rs = row.revenueShare / 100;
+        const clause = row.clause / 100;
+        if (rs === 0 && clause === 0) {
+          return <span className="text-zinc-600 text-xs">0%</span>;
+        }
+        return (
+          <span className="text-xs font-medium text-amber-400">
+            {rs}{clause > 0 ? <span className="text-orange-400">+{clause}</span> : ''}%
+          </span>
+        );
+      },
+    }),
+
+    columnHelper.accessor('listingPrice', {
+      header: 'Vente',
+      cell: (info) => {
+        const id = info.row.original.id;
+
+        // Pas encore vérifié
+        if (!checkedIds.has(id)) {
+          return <span className="text-zinc-700 text-[10px]">—</span>;
+        }
+
+        // Vérifié : prix depuis le state listings (override) ou la row
+        const price = listings[id] !== undefined ? listings[id] : info.getValue();
+
+        if (price == null) {
+          return <span className="text-zinc-600 text-[10px]">Non dispo</span>;
+        }
+
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse-once">
+            {price.toLocaleString()} $
+          </span>
+        );
+      },
+    }),
+
+    columnHelper.accessor('progression', {
+      header: 'Progression',
+      cell: (info) => {
+        const prog = info.getValue();
+        if (!prog) return <span className="text-zinc-600 text-xs">N/A</span>;
+        return (
+          <div className="flex items-center gap-2.5">
+            {PROG_KEYS.map(({ label, key }) => (
+              <div key={key} className="flex flex-col items-center min-w-[28px]">
+                <span className="text-[8px] text-zinc-600 uppercase leading-none mb-0.5">{label}</span>
+                <ProgressionBadge value={prog[key]} />
+              </div>
+            ))}
+          </div>
+        );
+      },
+    }),
+  ];
+
+  // ── Nb de joueurs en vente sur la page ──
+  const forSaleCount = data.filter((p) => checkedIds.has(p.id) && listings[p.id] != null).length;
 
   const table = useReactTable({
     data,
@@ -362,31 +392,35 @@ export default function PlayerTable() {
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
+    manualPagination: true,
+    pageCount: totalPages,
   });
 
   return (
     <div className="space-y-4">
       {/* ── FILTRES ── */}
       <div className="glass-card p-4 space-y-3">
-        {/* Ligne 1 : Recherche + Position + Intervalle */}
+        {/* Ligne 1 : Recherche + Position + Intervalles */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+          {/* Recherche */}
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
               type="text"
               placeholder="Rechercher un joueur..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/25 transition-colors"
+              className="pl-8 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-md text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors w-52"
             />
           </div>
 
+          {/* Position */}
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors [&>option]:bg-zinc-900 [&>optgroup]:bg-zinc-900"
+            className="bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/50 transition-colors"
           >
-            <option value="">Tous les postes</option>
+            <option value="">Toutes positions</option>
             {ALL_POSITIONS.map((group) => (
               <optgroup key={group.group} label={group.group}>
                 {group.items.map((pos) => (
@@ -396,12 +430,13 @@ export default function PlayerTable() {
             ))}
           </select>
 
-          <div className="flex gap-0.5 bg-white/5 rounded-lg p-1 border border-white/10">
+          {/* Intervalles */}
+          <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-1 border border-white/[0.06]">
             {INTERVALS.map((int) => (
               <button
                 key={int.value}
                 onClick={() => setInterval(int.value)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                   interval === int.value
                     ? 'bg-orange-500/25 text-orange-300 shadow-sm'
                     : 'text-zinc-500 hover:text-zinc-300'
@@ -413,7 +448,7 @@ export default function PlayerTable() {
           </div>
         </div>
 
-        {/* Ligne 2 : Filtres plage + Reset + Total */}
+        {/* Ligne 2 : Filtres plage + Reset + Bouton ventes + Total */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Âge</span>
@@ -442,7 +477,6 @@ export default function PlayerTable() {
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Bouton Reset — toujours visible */}
           <button
             onClick={resetFilters}
             disabled={!hasFilters}
@@ -450,6 +484,29 @@ export default function PlayerTable() {
           >
             <RotateCcw size={12} />
             Réinitialiser
+          </button>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Bouton vérifier les ventes */}
+          <button
+            onClick={checkListings}
+            disabled={checkingListings || loading || data.length === 0}
+            className={`px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 rounded-md border transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium ${
+              listingsChecked
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                : 'bg-white/5 text-zinc-300 border-white/10 hover:text-emerald-400 hover:border-emerald-500/30'
+            }`}
+          >
+            {checkingListings ? (
+              <><Loader2 size={12} className="animate-spin" />Vérification...</>
+            ) : (
+              <><ShoppingCart size={12} />
+              {listingsChecked
+                ? `${forSaleCount} en vente`
+                : 'Vérifier les ventes'
+              }</>
+            )}
           </button>
 
           <div className="ml-auto text-zinc-500 text-sm">
@@ -472,20 +529,16 @@ export default function PlayerTable() {
                     >
                       {header.isPlaceholder ? null : (
                         <div
-                          className={`flex items-center gap-1 ${
-                            header.column.getCanSort()
-                              ? 'cursor-pointer select-none hover:text-zinc-300 transition-colors'
-                              : ''
-                          }`}
+                          className={header.column.getCanSort() ? 'cursor-pointer select-none flex items-center gap-1 hover:text-zinc-300 transition-colors' : ''}
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {header.column.getCanSort() && (
-                            header.column.getIsSorted() === 'asc'
-                              ? <ArrowUp size={13} className="text-orange-400" />
-                              : header.column.getIsSorted() === 'desc'
-                              ? <ArrowDown size={13} className="text-orange-400" />
-                              : <ArrowUpDown size={13} className="text-zinc-700" />
+                            <span className="text-zinc-600">
+                              {header.column.getIsSorted() === 'asc' ? <ArrowUp size={12} className="text-orange-400" /> :
+                               header.column.getIsSorted() === 'desc' ? <ArrowDown size={12} className="text-orange-400" /> :
+                               <ArrowUpDown size={12} />}
+                            </span>
                           )}
                         </div>
                       )}
@@ -495,15 +548,14 @@ export default function PlayerTable() {
               ))}
             </thead>
             <tbody>
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="wait">
                 {loading ? (
                   <motion.tr key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <td colSpan={columns.length} className="text-center py-20 text-zinc-500">
-                      <Loader2 className="animate-spin mx-auto mb-2 text-orange-500" size={24} />
-                      <span className="text-sm">Chargement des joueurs...</span>
+                    <td colSpan={columns.length} className="text-center py-20">
+                      <Loader2 size={24} className="animate-spin text-orange-500 mx-auto" />
                     </td>
                   </motion.tr>
-                ) : data.length === 0 ? (
+                ) : table.getRowModel().rows.length === 0 ? (
                   <motion.tr key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <td colSpan={columns.length} className="text-center py-20 text-zinc-500 text-sm">
                       Aucun joueur trouvé.
@@ -517,7 +569,11 @@ export default function PlayerTable() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ delay: index * 0.015, duration: 0.2 }}
-                      className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors"
+                      className={`border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors ${
+                        checkedIds.has(row.original.id) && listings[row.original.id] != null
+                          ? 'bg-emerald-500/[0.04]'
+                          : ''
+                      }`}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-4 py-2.5">

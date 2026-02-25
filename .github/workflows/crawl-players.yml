@@ -1,7 +1,7 @@
 name: Crawl Players
 
 on:
-  workflow_dispatch: # lancement manuel uniquement
+  workflow_dispatch:
 
 jobs:
   crawl-players:
@@ -18,7 +18,33 @@ jobs:
 
       - run: npm ci
 
-      - name: Crawl Players (indexation complète)
+      - name: Test DB connection
+        run: |
+          node -e "
+          const mysql = require('mysql2/promise');
+          async function test() {
+            const conn = await mysql.createConnection({
+              host: process.env.DB_HOST,
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_NAME,
+              port: Number(process.env.DB_PORT),
+              ssl: { rejectUnauthorized: true }
+            });
+            const [rows] = await conn.execute('SELECT 1 as ok');
+            console.log('✅ DB connected:', rows[0]);
+            await conn.end();
+          }
+          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
+          "
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
+      - name: Crawl Players
         run: npm run crawl:players
         env:
           DB_HOST: ${{ secrets.DB_HOST }}

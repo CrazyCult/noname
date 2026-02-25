@@ -1,10 +1,6 @@
 /**
  * Player Indexation Crawler
- *
- * Fetches all players from the MFL API using cursor-based pagination
- * and upserts them into the local MySQL database.
- * Now also saves detailed stats (pace, shooting, etc.) to avoid live API calls.
- *
+ * Saves detailed stats + isDevCenter flag.
  * Usage: npx tsx src/scripts/crawl-players.ts
  */
 import 'dotenv/config';
@@ -45,7 +41,6 @@ async function crawlPlayers() {
       ownerName: player.ownedBy?.name ?? null,
       revenueShare: player.activeContract?.revenueShare ?? 0,
       clause: (player.activeContract?.totalRevenueShareLocked ?? 0) - (player.activeContract?.revenueShare ?? 0),
-      // ── Stats détaillées ──
       pace: player.metadata.pace ?? 0,
       shooting: player.metadata.shooting ?? 0,
       passing: player.metadata.passing ?? 0,
@@ -53,6 +48,7 @@ async function crawlPlayers() {
       defense: player.metadata.defense ?? 0,
       physical: player.metadata.physical ?? 0,
       goalkeeping: player.metadata.goalkeeping ?? 0,
+      isDevCenter: player.activeContract?.club?.type === 'DEVELOPMENT_CENTER',
     }));
 
     await db
@@ -77,6 +73,7 @@ async function crawlPlayers() {
           defense: sql`VALUES(${players.defense})`,
           physical: sql`VALUES(${players.physical})`,
           goalkeeping: sql`VALUES(${players.goalkeeping})`,
+          isDevCenter: sql`VALUES(${players.isDevCenter})`,
         },
       });
 

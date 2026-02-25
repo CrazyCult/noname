@@ -46,12 +46,8 @@ export const players = mysqlTable(
 export const progressions = mysqlTable(
   'progressions',
   {
-    playerId: int('player_id')
-      .notNull()
-      .references(() => players.id),
-    interval: varchar('interval', { length: 20 })
-      .notNull()
-      .$type<'24H' | 'WEEK' | 'MONTH' | 'ALL' | 'CURRENT_SEASON'>(),
+    playerId: int('player_id').notNull().references(() => players.id),
+    interval: varchar('interval', { length: 20 }).notNull().$type<'24H' | 'WEEK' | 'MONTH' | 'ALL' | 'CURRENT_SEASON'>(),
     overall: int('overall').default(0),
     pace: int('pace').default(0),
     shooting: int('shooting').default(0),
@@ -70,9 +66,7 @@ export const playerSnapshots = mysqlTable(
   'player_snapshots',
   {
     id: int('id').primaryKey().autoincrement(),
-    playerId: int('player_id')
-      .notNull()
-      .references(() => players.id),
+    playerId: int('player_id').notNull().references(() => players.id),
     overall: int('overall').notNull(),
     pace: int('pace').notNull(),
     shooting: int('shooting').notNull(),
@@ -87,5 +81,24 @@ export const playerSnapshots = mysqlTable(
     playerIdx: index('player_idx').on(table.playerId),
     createdAtIdx: index('created_at_idx').on(table.createdAt),
     playerDateIdx: index('player_date_idx').on(table.playerId, table.createdAt),
+  })
+);
+
+// ── Historique des crawls ──────────────────────────────
+export const crawlLogs = mysqlTable(
+  'crawl_logs',
+  {
+    id: int('id').primaryKey().autoincrement(),
+    type: varchar('type', { length: 30 }).notNull(), // 'progressions' | 'players'
+    interval: varchar('interval', { length: 20 }).$type<'24H' | 'WEEK' | 'MONTH' | 'ALL' | 'CURRENT_SEASON' | null>(),
+    startedAt: timestamp('started_at').notNull(),
+    finishedAt: timestamp('finished_at'),
+    playersProcessed: int('players_processed').default(0),
+    playersProgressed: int('players_progressed').default(0), // OVR >= 1
+    status: varchar('status', { length: 20 }).default('running'), // 'running' | 'success' | 'error'
+  },
+  (table) => ({
+    startedAtIdx: index('started_at_idx').on(table.startedAt),
+    typeIdx: index('type_idx').on(table.type),
   })
 );

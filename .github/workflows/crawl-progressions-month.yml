@@ -1,0 +1,30 @@
+name: Crawl Progressions MONTH
+
+on:
+  workflow_dispatch:
+
+jobs:
+  crawl-progressions-month:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: Crawling
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Crawl Progressions MONTH
+        run: npm run crawl:progressions MONTH
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}

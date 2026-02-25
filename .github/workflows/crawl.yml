@@ -1,0 +1,34 @@
+name: Daily Crawl
+
+on:
+  schedule:
+    # 10h10 Paris (09:10 UTC hiver / 08:10 UTC été)
+    - cron: '10 9 * * *'
+    # 22h50 Paris (21:50 UTC hiver / 20:50 UTC été)
+    - cron: '50 21 * * *'
+  workflow_dispatch: # lancement manuel depuis GitHub
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Crawl progressions (CURRENT_SEASON, 24H, WEEK)
+        run: npm run crawl:progressions
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}

@@ -5,7 +5,8 @@
  * in batches of 200 and upserts the results.
  *
  * Usage: npx tsx src/scripts/crawl-progressions.ts [interval]
- * Intervals: 24H, WEEK, MONTH, ALL, CURRENT_SEASON (default: WEEK)
+ * Sans argument : crawle TOUS les intervalles (24H, WEEK, MONTH, ALL, CURRENT_SEASON)
+ * Avec argument : crawle un seul intervalle (ex: npx tsx src/scripts/crawl-progressions.ts 24H)
  */
 import 'dotenv/config';
 import { getDb } from '../db';
@@ -24,12 +25,14 @@ const VALID_INTERVALS: ProgressionInterval[] = [
 ];
 
 async function crawlProgressions() {
-  const interval = (process.argv[2] as ProgressionInterval) || 'WEEK';
+  const requestedInterval = process.argv[2] as ProgressionInterval | undefined;
 
-  if (!VALID_INTERVALS.includes(interval)) {
-    console.error(`Invalid interval "${interval}". Use: ${VALID_INTERVALS.join(', ')}`);
+  if (requestedInterval && !VALID_INTERVALS.includes(requestedInterval)) {
+    console.error(`Invalid interval "${requestedInterval}". Use: ${VALID_INTERVALS.join(', ')}`);
     process.exit(1);
   }
+
+  const intervals = requestedInterval ? [requestedInterval] : VALID_INTERVALS;
 
   const db = await getDb();
 
@@ -37,63 +40,67 @@ async function crawlProgressions() {
   const allPlayers = await db.select({ id: players.id }).from(players);
   const playerIds = allPlayers.map((p) => p.id);
 
-  console.log(`[Progressions] Fetching ${interval} progressions for ${playerIds.length} players...`);
+  for (const interval of intervals) {
+    console.log(`\n[Progressions] === ${interval} === Fetching for ${playerIds.length} players...`);
 
-  let processed = 0;
-  let skipped = 0;
+    let processed = 0;
+    let skipped = 0;
 
-  for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
-    const batch = playerIds.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+      const batch = playerIds.slice(i, i + BATCH_SIZE);
 
-    console.log(`[Progressions] Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} players)...`);
+      console.log(`[Progressions] ${interval} - Batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} players)...`);
 
-    const data = await fetchProgressions(batch, interval);
+      const data = await fetchProgressions(batch, interval);
 
-    const values = [];
-    for (const [idStr, prog] of Object.entries(data)) {
-      if (!prog || prog.overall === null || prog.overall === undefined) {
-        skipped++;
-        continue;
+      const values = [];
+      for (const [idStr, prog] of Object.entries(data)) {
+        if (!prog || prog.overall === null || prog.overall === undefined) {
+          skipped++;
+          continue;
+        }
+
+        values.push({
+          playerId: Number(idStr),
+          interval,
+          overall: prog.overall ?? 0,
+          pace: prog.pace ?? 0,
+          shooting: prog.shooting ?? 0,
+          passing: prog.passing ?? 0,
+          dribbling: prog.dribbling ?? 0,
+          defense: prog.defense ?? 0,
+          physical: prog.physical ?? 0,
+        });
       }
 
-      values.push({
-        playerId: Number(idStr),
-        interval,
-        overall: prog.overall ?? 0,
-        pace: prog.pace ?? 0,
-        shooting: prog.shooting ?? 0,
-        passing: prog.passing ?? 0,
-        dribbling: prog.dribbling ?? 0,
-        defense: prog.defense ?? 0,
-        physical: prog.physical ?? 0,
-      });
+      if (values.length > 0) {
+        await db
+          .insert(progressions)
+          .values(values)
+          .onDuplicateKeyUpdate({
+            set: {
+              overall: sql`VALUES(${progressions.overall})`,
+              pace: sql`VALUES(${progressions.pace})`,
+              shooting: sql`VALUES(${progressions.shooting})`,
+              passing: sql`VALUES(${progressions.passing})`,
+              dribbling: sql`VALUES(${progressions.dribbling})`,
+              defense: sql`VALUES(${progressions.defense})`,
+              physical: sql`VALUES(${progressions.physical})`,
+            },
+          });
+      }
+
+      processed += batch.length;
+      console.log(`[Progressions] ${interval} - ${processed}/${playerIds.length} (skipped: ${skipped})`);
+
+      // Small delay between batches
+      await new Promise((r) => setTimeout(r, 2000));
     }
 
-    if (values.length > 0) {
-      await db
-        .insert(progressions)
-        .values(values)
-        .onDuplicateKeyUpdate({
-          set: {
-            overall: sql`VALUES(${progressions.overall})`,
-            pace: sql`VALUES(${progressions.pace})`,
-            shooting: sql`VALUES(${progressions.shooting})`,
-            passing: sql`VALUES(${progressions.passing})`,
-            dribbling: sql`VALUES(${progressions.dribbling})`,
-            defense: sql`VALUES(${progressions.defense})`,
-            physical: sql`VALUES(${progressions.physical})`,
-          },
-        });
-    }
-
-    processed += batch.length;
-    console.log(`[Progressions] Processed ${processed}/${playerIds.length} (skipped: ${skipped})`);
-
-    // Small delay between batches
-    await new Promise((r) => setTimeout(r, 2000));
+    console.log(`[Progressions] ${interval} done! ${processed} players (skipped ${skipped}).`);
   }
 
-  console.log(`[Progressions] Done! Updated ${interval} progressions for ${processed} players (skipped ${skipped} players with missing data).`);
+  console.log('\n[Progressions] All intervals complete!');
   process.exit(0);
 }
 

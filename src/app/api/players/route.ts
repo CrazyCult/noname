@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
-import { players, progressions, playerSnapshots } from '@/db/schema';
+import { players, progressions } from '@/db/schema';
 import { desc, asc, sql, eq } from 'drizzle-orm';
 import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
 import { fetchPlayersStats } from '@/lib/mfl-api';
 import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
 
-function getStartDate(interval: ProgressionInterval): Date {
-  const now = new Date();
-  switch (interval) {
-    case '24H':
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    case 'WEEK':
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    case 'MONTH':
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    case 'CURRENT_SEASON': {
-      const currentMonth = now.getMonth();
-      const seasonStartYear = currentMonth < 9 ? now.getFullYear() - 1 : now.getFullYear();
-      return new Date(seasonStartYear, 9, 1);
-    }
-    case 'ALL':
-    default:
-      return new Date('2020-01-01');
-  }
-}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -140,77 +121,23 @@ export async function GET(request: NextRequest) {
     if (playerIds.length > 0) {
       const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
 
-      if (interval === 'ALL') {
-        const progRows = await db
-          .select()
-          .from(progressions)
-          .where(
-            sql`${progressions.playerId} IN (${idsJoin}) AND ${progressions.interval} = 'ALL'`
-          );
+      const progRows = await db
+        .select()
+        .from(progressions)
+        .where(
+          sql`${progressions.playerId} IN (${idsJoin}) AND ${progressions.interval} = ${interval}`
+        );
 
-        for (const row of progRows) {
-          progressionMap[row.playerId] = {
-            overall: row.overall ?? 0,
-            pace: row.pace ?? 0,
-            shooting: row.shooting ?? 0,
-            passing: row.passing ?? 0,
-            dribbling: row.dribbling ?? 0,
-            defense: row.defense ?? 0,
-            physical: row.physical ?? 0,
-          };
-        }
-      } else {
-        const startDate = getStartDate(interval);
-
-        const currentSnapshots = await db
-          .select()
-          .from(playerSnapshots)
-          .where(
-            sql`${playerSnapshots.playerId} IN (${idsJoin})
-              AND ${playerSnapshots.id} IN (
-                SELECT MAX(${playerSnapshots.id})
-                FROM ${playerSnapshots}
-                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
-                GROUP BY ${playerSnapshots.playerId}
-              )`
-          );
-
-        const referenceSnapshots = await db
-          .select()
-          .from(playerSnapshots)
-          .where(
-            sql`${playerSnapshots.playerId} IN (${idsJoin})
-              AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
-              AND ${playerSnapshots.id} IN (
-                SELECT MIN(${playerSnapshots.id})
-                FROM ${playerSnapshots}
-                WHERE ${playerSnapshots.playerId} IN (${idsJoin})
-                  AND ${playerSnapshots.createdAt} >= ${startDate.toISOString()}
-                GROUP BY ${playerSnapshots.playerId}
-              )`
-          );
-
-        const currentMap: Record<number, typeof currentSnapshots[number]> = {};
-        for (const snap of currentSnapshots) currentMap[snap.playerId] = snap;
-
-        const refMap: Record<number, typeof referenceSnapshots[number]> = {};
-        for (const snap of referenceSnapshots) refMap[snap.playerId] = snap;
-
-        for (const playerId of playerIds) {
-          const current = currentMap[playerId];
-          const reference = refMap[playerId];
-          if (current && reference) {
-            progressionMap[playerId] = {
-              overall: current.overall - reference.overall,
-              pace: current.pace - reference.pace,
-              shooting: current.shooting - reference.shooting,
-              passing: current.passing - reference.passing,
-              dribbling: current.dribbling - reference.dribbling,
-              defense: current.defense - reference.defense,
-              physical: current.physical - reference.physical,
-            };
-          }
-        }
+      for (const row of progRows) {
+        progressionMap[row.playerId] = {
+          overall: row.overall ?? 0,
+          pace: row.pace ?? 0,
+          shooting: row.shooting ?? 0,
+          passing: row.passing ?? 0,
+          dribbling: row.dribbling ?? 0,
+          defense: row.defense ?? 0,
+          physical: row.physical ?? 0,
+        };
       }
     }
 

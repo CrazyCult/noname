@@ -6,12 +6,13 @@ on:
     - cron: '10 9 * * *'
     # 22h50 Paris (21:50 UTC hiver / 20:50 UTC été)
     - cron: '50 21 * * *'
-  workflow_dispatch: # lancement manuel depuis GitHub
+  workflow_dispatch:
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    environment: Crawling
 
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +23,32 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Test DB connection
+        run: |
+          node -e "
+          const mysql = require('mysql2/promise');
+          async function test() {
+            const conn = await mysql.createConnection({
+              host: process.env.DB_HOST,
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_NAME,
+              port: Number(process.env.DB_PORT),
+              ssl: { rejectUnauthorized: true }
+            });
+            const [rows] = await conn.execute('SELECT 1 as ok');
+            console.log('✅ DB connected:', rows[0]);
+            await conn.end();
+          }
+          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
+          "
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
 
       - name: Crawl progressions (CURRENT_SEASON, 24H, WEEK)
         run: npm run crawl:progressions

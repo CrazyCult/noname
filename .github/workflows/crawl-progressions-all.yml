@@ -7,6 +7,7 @@ jobs:
   crawl-progressions-all:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: Crawling
 
     steps:
       - uses: actions/checkout@v4

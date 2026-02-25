@@ -23,6 +23,11 @@ export interface MflPlayer {
   activeContract?: {
     revenueShare: number;
     totalRevenueShareLocked: number;
+    club?: {
+      id: number;
+      name: string;
+      type: string; // "DEVELOPMENT_CENTER" | "CLUB" | ...
+    };
   };
   offerStatus?: number;
 }
@@ -78,8 +83,8 @@ export interface PlayerRow {
   revenueShare: number;
   clause: number;
   listingPrice: number | null;
+  isDevCenter: boolean;
   progression?: MflProgression;
-  /** OVR pré-calculé par position (primaire, secondaire, tertiaire) */
   positionOvrs: { position: string; ovr: number }[];
 }
 
@@ -99,5 +104,5 @@ export interface PlayerHistoryEntry {
   };
 }
 
-/** Complete player history response */
+/** Complete player history */
 export type PlayerHistory = PlayerHistoryEntry[];

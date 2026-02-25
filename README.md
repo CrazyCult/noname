@@ -1,6 +1,5 @@
-# MFL Scout - Player Progression Dashboard
 
-Dashboard pour suivre les statistiques et progressions des joueurs MFL en temps réel.
+
 
 ## Stack Technique
 

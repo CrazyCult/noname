@@ -352,7 +352,7 @@ export default function PlayerTable() {
         const price = listings[id] !== undefined ? listings[id] : info.getValue();
 
         if (price == null) {
-          return <span className="text-zinc-600 text-[10px]">Non dispo</span>;
+          return <span className="text-zinc-600 text-[10px]">Aucune Offre</span>;
         }
 
         return (

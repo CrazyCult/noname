@@ -2,11 +2,11 @@
  * Progression Monitoring Crawler — avec crawl_logs
  */
 import 'dotenv/config';
-import { getDb } from './src/db';
-import { players, progressions, crawlLogs } from './src/db/schema';
-import { fetchProgressions } from './src/lib/mfl-api';
+import { getDb } from '../src/db';
+import { players, progressions, crawlLogs } from '../src/db/schema';
+import { fetchProgressions } from '../src/lib/mfl-api';
 import { sql, eq } from 'drizzle-orm';
-import type { ProgressionInterval } from './src/types/mfl';
+import type { ProgressionInterval } from '../src/types/mfl';
 
 const BATCH_SIZE = 200;
 const DELAY_MS = 1000;

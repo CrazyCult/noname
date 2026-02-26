@@ -1,14 +1,14 @@
 /**
  * Player Indexation Crawler
  * Saves detailed stats + isDevCenter flag.
- * Usage: npx tsx src/scripts/crawl-players.ts
+ * Usage: npx tsx scripts/crawl-players.ts
  */
 import 'dotenv/config';
-import { getDb } from '../db';
-import { players } from '../db/schema';
-import { fetchPlayersPage } from '../lib/mfl-api';
+import { getDb } from '../src/db';
+import { players } from '../src/db/schema';
+import { fetchPlayersPage } from '../src/lib/mfl-api';
 import { sql } from 'drizzle-orm';
-import type { MflPlayer } from '../types/mfl';
+import type { MflPlayer } from '../src/types/mfl';
 
 async function crawlPlayers() {
   const db = await getDb();

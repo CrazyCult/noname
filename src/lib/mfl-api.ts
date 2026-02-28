@@ -109,6 +109,11 @@ export async function fetchPlayersStats(
 /**
  * Fetch progressions for a batch of player IDs.
  * The API accepts comma-separated IDs (max ~200 per request).
+ *
+ * For time-based intervals (24H, WEEK, MONTH) the API requires a `minDate`
+ * unix timestamp in milliseconds — passing `interval=24H` returns the same
+ * data as WEEK or CURRENT_SEASON (API limitation).
+ * For CURRENT_SEASON and ALL the `interval` query param is used as-is.
  */
 export async function fetchProgressions(
   playerIds: number[],
@@ -116,10 +121,23 @@ export async function fetchProgressions(
 ): Promise<MflProgressionsResponse> {
   if (playerIds.length === 0) return {};
 
-  const params = new URLSearchParams({
-    playersIds: playerIds.join(','),
-    interval,
-  });
+  const params = new URLSearchParams({ playersIds: playerIds.join(',') });
+
+  const now = Date.now();
+  switch (interval) {
+    case '24H':
+      params.set('minDate', String(now - 24 * 60 * 60 * 1000));
+      break;
+    case 'WEEK':
+      params.set('minDate', String(now - 7 * 24 * 60 * 60 * 1000));
+      break;
+    case 'MONTH':
+      params.set('minDate', String(now - 30 * 24 * 60 * 60 * 1000));
+      break;
+    default:
+      // CURRENT_SEASON, ALL → native interval param
+      params.set('interval', interval);
+  }
 
   const res = await fetch(`${BASE_URL}/players/progressions?${params}`, {
     headers: { Accept: 'application/json' },

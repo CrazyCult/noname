@@ -10,6 +10,7 @@ import { RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 interface IntervalStats {
   totalPlayers: number;
   playersProgressed: number;
+  lastUpdated: string | null;
 }
 
 interface CrawlLog {

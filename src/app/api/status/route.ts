@@ -13,17 +13,19 @@ export async function GET() {
       SELECT
         \`interval\`,
         COUNT(*) AS total_players,
-        SUM(CASE WHEN overall >= 1 THEN 1 ELSE 0 END) AS players_progressed
+        SUM(CASE WHEN overall >= 1 THEN 1 ELSE 0 END) AS players_progressed,
+        MAX(updated_at) AS last_updated
       FROM progressions
       GROUP BY \`interval\`
     `);
     const intervalData = (intervalRows as any)[0] ?? intervalRows;
 
-    const intervals: Record<string, { totalPlayers: number; playersProgressed: number }> = {};
+    const intervals: Record<string, { totalPlayers: number; playersProgressed: number; lastUpdated: string | null }> = {};
     for (const row of intervalData as any[]) {
       intervals[row.interval] = {
         totalPlayers: Number(row.total_players ?? 0),
         playersProgressed: Number(row.players_progressed ?? 0),
+        lastUpdated: row.last_updated ? new Date(row.last_updated).toISOString() : null,
       };
     }
 

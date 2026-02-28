@@ -34,7 +34,7 @@ const PROG_KEYS: { label: string; key: keyof MflProgression }[] = [
   { label: 'OVR', key: 'overall' }, ...ATTR_KEYS,
 ];
 
-interface IntervalStats { totalPlayers: number; playersProgressed: number; }
+interface IntervalStats { totalPlayers: number; playersProgressed: number; lastUpdated: string | null; }
 interface ApiResponse {
   data: PlayerRow[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
@@ -394,16 +394,31 @@ export default function PlayerTable({
               const stats = intervalStats[int.value];
               const count = stats?.playersProgressed;
               const isActive = interval === int.value;
+              const lastUpdated = stats?.lastUpdated ? new Date(stats.lastUpdated) : null;
+              const STALE_MS: Partial<Record<ProgressionInterval, number>> = {
+                '24H': 25 * 60 * 60 * 1000,
+                'WEEK': 8 * 24 * 60 * 60 * 1000,
+                'MONTH': 31 * 24 * 60 * 60 * 1000,
+              };
+              const staleThreshold = STALE_MS[int.value];
+              const isStale = lastUpdated != null && staleThreshold != null
+                && (Date.now() - lastUpdated.getTime()) > staleThreshold;
               return (
                 <button key={int.value} onClick={() => setInterval(int.value)}
+                  title={lastUpdated ? `Mis à jour : ${lastUpdated.toLocaleString('fr-FR')}${isStale ? ' (données périmées)' : ''}` : undefined}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     isActive ? 'bg-orange-500/25 text-orange-300' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
                   {int.label}
+                  {isStale && (
+                    <span className="text-[9px] text-amber-500" title="Données périmées">⚠</span>
+                  )}
                   {count != null && count > 0 && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                      isActive ? 'bg-orange-500/30 text-orange-200' : 'bg-white/10 text-zinc-400'
+                      isStale
+                        ? 'bg-amber-500/15 text-amber-500/70'
+                        : isActive ? 'bg-orange-500/30 text-orange-200' : 'bg-white/10 text-zinc-400'
                     }`}>
                       {count.toLocaleString()}
                     </span>

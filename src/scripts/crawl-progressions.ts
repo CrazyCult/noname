@@ -115,33 +115,21 @@ async function crawlInterval(
 
     const values = [];
     for (const playerId of batch) {
-      const prog = data[String(playerId)];
-      if (!prog || prog.overall === null || prog.overall === undefined) {
-        // Player absent from API response or has no data → zero out stale values
-        skipped++;
-        values.push({
-          playerId,
-          interval,
-          overall: 0,
-          pace: 0,
-          shooting: 0,
-          passing: 0,
-          dribbling: 0,
-          defense: 0,
-          physical: 0,
-        });
-        continue;
-      }
+      // prog can be: null (API returns null → no progression), undefined (player absent from
+      // response), or a partial object like {shooting:1} (only changed stats, overall omitted).
+      // In all cases we use ??0 so stale DB values are always overwritten with current data.
+      const prog = data[String(playerId)] ?? null;
+      if (!prog) skipped++;
       values.push({
         playerId,
         interval,
-        overall: prog.overall ?? 0,
-        pace: prog.pace ?? 0,
-        shooting: prog.shooting ?? 0,
-        passing: prog.passing ?? 0,
-        dribbling: prog.dribbling ?? 0,
-        defense: prog.defense ?? 0,
-        physical: prog.physical ?? 0,
+        overall: prog?.overall ?? 0,
+        pace: prog?.pace ?? 0,
+        shooting: prog?.shooting ?? 0,
+        passing: prog?.passing ?? 0,
+        dribbling: prog?.dribbling ?? 0,
+        defense: prog?.defense ?? 0,
+        physical: prog?.physical ?? 0,
       });
     }
 

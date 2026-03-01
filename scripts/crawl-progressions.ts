@@ -76,17 +76,21 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
     const data = await fetchWithRetry(batch, interval);
 
     const values = [];
-    for (const [idStr, prog] of Object.entries(data)) {
-      if (!prog || prog.overall == null) { skipped++; continue; }
+    for (const playerId of batch) {
+      // prog can be: undefined (not in API response = no progression),
+      // or a partial object like {shooting:1} (only changed stats, overall omitted).
+      // Use ??0 for all fields so stale DB values are always overwritten.
+      const prog = data[String(playerId)] ?? null;
+      if (!prog) skipped++;
       values.push({
-        playerId: Number(idStr), interval,
-        overall: prog.overall ?? 0,
-        pace: prog.pace ?? 0,
-        shooting: prog.shooting ?? 0,
-        passing: prog.passing ?? 0,
-        dribbling: prog.dribbling ?? 0,
-        defense: prog.defense ?? 0,
-        physical: prog.physical ?? 0,
+        playerId, interval,
+        overall: prog?.overall ?? 0,
+        pace: prog?.pace ?? 0,
+        shooting: prog?.shooting ?? 0,
+        passing: prog?.passing ?? 0,
+        dribbling: prog?.dribbling ?? 0,
+        defense: prog?.defense ?? 0,
+        physical: prog?.physical ?? 0,
       });
     }
 
@@ -101,6 +105,9 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
             dribbling: sql`VALUES(${sql.raw('`dribbling`')})`,
             defense: sql`VALUES(${sql.raw('`defense`')})`,
             physical: sql`VALUES(${sql.raw('`physical`')})`,
+            // Force timestamp refresh even when values are unchanged (e.g. 0→0),
+            // so the orphan purge can correctly identify untouched rows.
+            updatedAt: sql`NOW()`,
           },
         });
         inserted += values.length;
@@ -120,16 +127,28 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
     if (i + BATCH_SIZE < playerIds.length) await sleep(DELAY_MS);
   }
 
-  // Compter les joueurs avec OVR >= 1 pour cet intervalle
-  const progressedResult = await db
-    .select({ count: sql<number>`COUNT(*)` })
+  // Purge orphaned rows (players removed from `players` table) and rows not
+  // touched by this crawl run. All processed rows have updatedAt=NOW() so
+  // anything older than crawlStart is a true orphan.
+  const crawlStart = new Date(startTime);
+  const purgeResult = await db.execute(
+    sql`DELETE FROM progressions WHERE \`interval\` = ${interval} AND updated_at < ${crawlStart}`
+  );
+  const purged = (purgeResult as any)[0]?.affectedRows ?? 0;
+
+  // DB truth after purge
+  const [dbRow] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      progressed: sql<number>`SUM(CASE WHEN overall >= 1 THEN 1 ELSE 0 END)`,
+    })
     .from(progressions)
-    .where(sql`${progressions.interval} = ${interval} AND ${progressions.overall} >= 1`);
-  const playersProgressed = progressedResult[0].count;
+    .where(sql`${progressions.interval} = ${interval}`);
+  const playersProgressed = Number(dbRow.progressed ?? 0);
 
   const durationMs = Date.now() - startTime;
-  console.log(`[${interval}] Done in ${formatDuration(durationMs)} — ${inserted} inserted, ${skipped} skipped, ${failed} failed`);
-  console.log(`[${interval}] Joueurs avec OVR >= 1 : ${playersProgressed}`);
+  console.log(`[${interval}] Done in ${formatDuration(durationMs)} — ${inserted} inserted, ${skipped} skipped, ${failed} failed, ${purged} orphans purged`);
+  console.log(`[${interval}] DB: ${dbRow.total} rows total, ${playersProgressed} with OVR >= 1`);
 
   // ── Log fin ──
   if (logId) {

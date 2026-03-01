@@ -184,18 +184,28 @@ async function crawlInterval(
 
   const durationMs = Date.now() - startTime;
 
+  // Purge orphaned rows — players removed from `players` table since last crawl
+  // or any row not touched by this crawl run (updated_at predates crawl start).
+  const crawlStart = new Date(startTime);
+  const purgeResult = await db.execute(
+    sql`DELETE FROM progressions WHERE \`interval\` = ${interval} AND updated_at < ${crawlStart}`
+  );
+  const purged = (purgeResult as any)[0]?.affectedRows ?? 0;
+
   // Verify what's actually in the DB
-  const dbCount = await db
-    .select({ count: sql<number>`COUNT(*)` })
+  const [dbRow] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      progressed: sql<number>`SUM(CASE WHEN overall >= 1 THEN 1 ELSE 0 END)`,
+    })
     .from(progressions)
     .where(sql`${progressions.interval} = ${interval}`);
-  const actualCount = dbCount[0].count;
 
   console.log(
     `[${interval}] Done in ${formatDuration(durationMs)} — ` +
-      `${processed} processed, ${inserted} inserted, ${skipped} skipped, ${failed} failed`
+      `${processed} processed, ${inserted} inserted, ${skipped} skipped, ${failed} failed, ${purged} orphans purged`
   );
-  console.log(`[${interval}] DB verification: ${actualCount} rows in progressions table`);
+  console.log(`[${interval}] DB: ${dbRow.total} rows total, ${dbRow.progressed ?? 0} with OVR >= 1`);
 
   return { processed, skipped, failed, durationMs };
 }

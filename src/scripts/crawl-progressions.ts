@@ -19,6 +19,38 @@ import { fetchProgressions } from '../lib/mfl-api';
 import { sql } from 'drizzle-orm';
 import type { ProgressionInterval } from '../types/mfl';
 
+// ── crawl_logs helpers ───────────────────────────────────
+async function logStart(interval: ProgressionInterval): Promise<number> {
+  const db = await getDb();
+  // Mark any previous stale 'running' entry for this interval as error
+  await db.execute(sql`
+    UPDATE crawl_logs SET status = 'error', finished_at = NOW()
+    WHERE status = 'running' AND \`interval\` = ${interval}
+  `);
+  const result = await db.execute(sql`
+    INSERT INTO crawl_logs (type, \`interval\`, started_at, status)
+    VALUES ('progressions', ${interval}, NOW(), 'running')
+  `);
+  return (result as any)[0]?.insertId ?? 0;
+}
+
+async function logEnd(
+  logId: number,
+  status: 'success' | 'error',
+  playersProcessed: number,
+  playersProgressed: number
+) {
+  if (!logId) return;
+  const db = await getDb();
+  await db.execute(sql`
+    UPDATE crawl_logs
+    SET status = ${status}, finished_at = NOW(),
+        players_processed = ${playersProcessed},
+        players_progressed = ${playersProgressed}
+    WHERE id = ${logId}
+  `);
+}
+
 // ── Config ──────────────────────────────────────────────
 const BATCH_SIZE = 200;
 const DELAY_MS = 1000; // 1s between batches (~1 req/s, safe for MFL API)
@@ -102,6 +134,8 @@ async function crawlInterval(
   let skipped = 0;
   let inserted = 0;
   let failed = 0;
+
+  const logId = await logStart(interval);
 
   console.log(`\n${'='.repeat(60)}`);
   console.log(`  [${interval}] Starting — ${playerIds.length} players, ${totalBatches} batches`);
@@ -211,6 +245,9 @@ async function crawlInterval(
       `${processed} processed, ${inserted} inserted, ${skipped} skipped, ${failed} failed, ${purged} orphans purged`
   );
   console.log(`[${interval}] DB: ${dbRow.total} rows total, ${dbRow.progressed ?? 0} with OVR >= 1`);
+
+  const progressed = Number(dbRow.progressed ?? 0);
+  await logEnd(logId, failed === processed ? 'error' : 'success', processed, progressed);
 
   return { processed, skipped, failed, durationMs };
 }

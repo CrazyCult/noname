@@ -50,6 +50,15 @@ export async function GET() {
       status: row.status,
     }));
 
+    // Auto-expire stale 'running' entries killed by GH Actions cancellation
+    // (max crawl duration is ~90min; anything older than 3h is definitely dead)
+    await db.execute(sql`
+      UPDATE crawl_logs
+      SET status = 'error', finished_at = NOW()
+      WHERE status = 'running'
+        AND started_at < NOW() - INTERVAL 3 HOUR
+    `);
+
     // Crawl en cours ?
     const runningRows = await db.execute(sql`
       SELECT id, type, \`interval\`, started_at

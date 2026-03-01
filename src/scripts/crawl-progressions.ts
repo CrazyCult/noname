@@ -147,6 +147,11 @@ async function crawlInterval(
               dribbling: sql`VALUES(${sql.raw('`dribbling`')})`,
               defense: sql`VALUES(${sql.raw('`defense`')})`,
               physical: sql`VALUES(${sql.raw('`physical`')})`,
+              // Force timestamp refresh so purge can correctly identify orphans:
+              // MySQL/TiDB only auto-updates updated_at when a value actually changes.
+              // Players with unchanged values (e.g. 0→0) would keep a stale timestamp
+              // and get incorrectly purged. Explicit NOW() fixes this.
+              updatedAt: sql`NOW()`,
             },
           });
         inserted += values.length;

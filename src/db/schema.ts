@@ -84,7 +84,63 @@ export const playerSnapshots = mysqlTable(
   })
 );
 
-// ── Historique des crawls ──────────────────────────────
+// Immutable result of every progression crawl. Unlike `progressions`, rows here
+// are never overwritten and can therefore be used for time-series features.
+export const progressionObservations = mysqlTable(
+  'progression_observations',
+  {
+    id: int('id').primaryKey().autoincrement(),
+    playerId: int('player_id').notNull().references(() => players.id),
+    interval: varchar('interval', { length: 20 }).notNull(),
+    overall: int('overall').default(0),
+    pace: int('pace').default(0),
+    shooting: int('shooting').default(0),
+    passing: int('passing').default(0),
+    dribbling: int('dribbling').default(0),
+    defense: int('defense').default(0),
+    physical: int('physical').default(0),
+    observedAt: timestamp('observed_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    playerIntervalDateIdx: index('progression_observation_player_interval_date_idx')
+      .on(table.playerId, table.interval, table.observedAt),
+  })
+);
+
+// Raw incremental events returned by /players/{id}/experiences/history.
+export const playerHistoryEvents = mysqlTable(
+  'player_history_events',
+  {
+    playerId: int('player_id').notNull().references(() => players.id),
+    eventDate: timestamp('event_date', { mode: 'date', fsp: 3 }).notNull(),
+    values: json('values').$type<Record<string, number>>().notNull(),
+    fetchedAt: timestamp('fetched_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.playerId, table.eventDate] }),
+    eventDateIdx: index('history_event_date_idx').on(table.eventDate),
+  })
+);
+
+export const playerPredictions = mysqlTable(
+  'player_predictions',
+  {
+    playerId: int('player_id').primaryKey().references(() => players.id),
+    predictedGain: int('predicted_gain').notNull(),
+    predictedOverall: int('predicted_overall').notNull(),
+    probabilityGain10: int('probability_gain_10').notNull(),
+    probabilityGain15: int('probability_gain_15').notNull(),
+    probabilityGain20: int('probability_gain_20').notNull(),
+    probabilityGain25: int('probability_gain_25').notNull(),
+    probabilityGain30: int('probability_gain_30').notNull(),
+    sampleSize: int('sample_size').notNull(),
+    confidence: int('confidence').notNull(),
+    modelVersion: varchar('model_version', { length: 40 }).notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow().onUpdateNow(),
+  }
+);
+
+// â”€â”€ Historique des crawls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const crawlLogs = mysqlTable(
   'crawl_logs',
   {

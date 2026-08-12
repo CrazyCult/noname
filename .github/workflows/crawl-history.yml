@@ -4,9 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       start_after_id:
-        description: Resume after player ID
+        description: Resume after this player ID (use the value printed by the previous run)
         required: false
         default: '0'
+      max_players:
+        description: Players to process in this run (maximum 15000)
+        required: false
+        default: '15000'
+      delay_ms:
+        description: Minimum interval between MFL requests in milliseconds (minimum 700)
+        required: false
+        default: '700'
 
 jobs:
   history:
@@ -29,3 +37,5 @@ jobs:
           DB_PORT: ${{ secrets.DB_PORT }}
           MFL_API_URL: ${{ secrets.MFL_API_URL }}
           HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}
+          HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
+          HISTORY_DELAY_MS: ${{ inputs.delay_ms }}

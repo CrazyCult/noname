@@ -17,6 +17,8 @@ export const players = mysqlTable(
     lastName: varchar('last_name', { length: 100 }).notNull(),
     overall: int('overall').notNull(),
     age: int('age').notNull(),
+    // Present only when MFL has officially announced a player's retirement window.
+    retirementYears: int('retirement_years'),
     positions: json('positions').$type<string[]>(),
     nationalities: json('nationalities').$type<string[]>(),
     ownerAddress: varchar('owner_address', { length: 255 }),

@@ -15,9 +15,21 @@ on:
         description: Minimum interval between MFL requests in milliseconds (minimum 700)
         required: false
         default: '700'
+      chain:
+        description: Automatically queue the next batch after a successful run
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: history-backfill
+  cancel-in-progress: false
 
 jobs:
   history:
+    permissions:
+      actions: write
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 360
     environment: Crawling
@@ -28,7 +40,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run crawl:history
+      - id: history
+        run: npm run crawl:history
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
@@ -39,3 +52,14 @@ jobs:
           HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}
           HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
           HISTORY_DELAY_MS: ${{ inputs.delay_ms }}
+
+      - name: Queue next history batch
+        if: success() && inputs.chain && steps.history.outputs.has_more == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run crawl-history.yml --ref main \
+            -f start_after_id="${{ steps.history.outputs.next_start_after_id }}" \
+            -f max_players="${{ inputs.max_players }}" \
+            -f delay_ms="${{ inputs.delay_ms }}" \
+            -f chain=true

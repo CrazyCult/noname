@@ -2,7 +2,7 @@ name: Weekly Crawl Players
 
 on:
   schedule:
-    # Jeudi 3h00 Paris (02:00 UTC hiver / 01:00 UTC Ã©tÃ©)
+    # Jeudi 3h00 Paris (02:00 UTC hiver / 01:00 UTC été)
     - cron: '0 2 * * 4'
   workflow_dispatch:
 
@@ -36,10 +36,10 @@ jobs:
               ssl: { rejectUnauthorized: true }
             });
             const [rows] = await conn.execute('SELECT 1 as ok');
-            console.log('âœ… DB connected:', rows[0]);
+            console.log('✅ DB connected:', rows[0]);
             await conn.end();
           }
-          test().catch(e => { console.error('âŒ DB error:', e.message); process.exit(1); });
+          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
           "
         env:
           DB_HOST: ${{ secrets.DB_HOST }}

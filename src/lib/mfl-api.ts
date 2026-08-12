@@ -67,7 +67,7 @@ export interface PlayerLiveData {
 
 /**
  * Fetch multiple players by IDs in batches of 10 to avoid rate-limiting.
- * Returns a map of player ID â†’ stats + live contract/listing data.
+ * Returns a map of player ID → stats + live contract/listing data.
  */
 export async function fetchPlayersStats(
   ids: number[]
@@ -113,7 +113,7 @@ export async function fetchPlayersStats(
  * The API accepts comma-separated IDs (max ~200 per request).
  *
  * For time-based intervals (24H, WEEK, MONTH) the API requires a `minDate`
- * unix timestamp in milliseconds â€” passing `interval=24H` returns the same
+ * unix timestamp in milliseconds — passing `interval=24H` returns the same
  * data as WEEK or CURRENT_SEASON (API limitation).
  * For CURRENT_SEASON and ALL the `interval` query param is used as-is.
  */
@@ -137,7 +137,7 @@ export async function fetchProgressions(
       params.set('minDate', String(now - 30 * 24 * 60 * 60 * 1000));
       break;
     default:
-      // CURRENT_SEASON, ALL â†’ native interval param
+      // CURRENT_SEASON, ALL → native interval param
       params.set('interval', interval);
   }
 

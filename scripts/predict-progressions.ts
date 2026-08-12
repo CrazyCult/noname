@@ -12,6 +12,7 @@ import {
   playerHistoryEvents,
   playerPredictions,
   playerSnapshots,
+  progressionObservations,
 } from '../src/db/schema';
 import { asc, gte, sql } from 'drizzle-orm';
 
@@ -143,6 +144,43 @@ function historyMomentum(points: HistoryPoint[], start: Profile, startDate: Date
   return end ? profileMomentum(start, end, selected.days) : undefined;
 }
 
+function observationMomentum(
+  observations: Array<{
+    interval: string;
+    overall: number | null;
+    pace: number | null;
+    shooting: number | null;
+    passing: number | null;
+    dribbling: number | null;
+    defense: number | null;
+    physical: number | null;
+  }>
+): number | undefined {
+  const signal = (observation: (typeof observations)[number]) => {
+    const attributes = [
+      observation.pace,
+      observation.shooting,
+      observation.passing,
+      observation.dribbling,
+      observation.defense,
+      observation.physical,
+    ].map(asNumber).filter((value): value is number => value !== undefined);
+    const averageAttributeGain = attributes.length
+      ? attributes.reduce((sum, value) => sum + value, 0) / attributes.length
+      : asNumber(observation.overall) ?? 0;
+    return (asNumber(observation.overall) ?? 0) * 0.6 + averageAttributeGain * 0.4;
+  };
+
+  // WEEK is the direct MFL progression curve. Keep several observations to
+  // smooth a one-off event; use 24H only while a weekly curve is unavailable.
+  const week = observations.filter((observation) => observation.interval === 'WEEK').slice(-4);
+  if (week.length) return Number((week.reduce((sum, observation) => sum + signal(observation), 0) / week.length).toFixed(3));
+
+  const day = observations.filter((observation) => observation.interval === '24H').slice(-4);
+  if (!day.length) return undefined;
+  return Number((day.reduce((sum, observation) => sum + signal(observation), 0) / day.length * 7).toFixed(3));
+}
+
 function snapshotMomentum(
   snapshots: Array<{
     createdAt: Date;
@@ -238,7 +276,7 @@ function confidence(neighbours: Neighbour[], hasCurve: boolean): number {
 
 async function main() {
   const db = await getDb();
-  const [historyRows, playerRows, snapshotRows] = await Promise.all([
+  const [historyRows, playerRows, snapshotRows, observationRows] = await Promise.all([
     db.select({
       playerId: playerHistoryEvents.playerId,
       eventDate: playerHistoryEvents.eventDate,
@@ -271,6 +309,20 @@ async function main() {
     }).from(playerSnapshots)
       .where(gte(playerSnapshots.createdAt, new Date(Date.now() - MAX_CURVE_DAYS * 86_400_000)))
       .orderBy(asc(playerSnapshots.playerId), asc(playerSnapshots.createdAt)),
+    db.select({
+      playerId: progressionObservations.playerId,
+      interval: progressionObservations.interval,
+      overall: progressionObservations.overall,
+      pace: progressionObservations.pace,
+      shooting: progressionObservations.shooting,
+      passing: progressionObservations.passing,
+      dribbling: progressionObservations.dribbling,
+      defense: progressionObservations.defense,
+      physical: progressionObservations.physical,
+      observedAt: progressionObservations.observedAt,
+    }).from(progressionObservations)
+      .where(gte(progressionObservations.observedAt, new Date(Date.now() - MAX_CURVE_DAYS * 86_400_000)))
+      .orderBy(asc(progressionObservations.playerId), asc(progressionObservations.observedAt)),
   ]);
 
   const playersById = new Map(playerRows.map((player) => [player.id, player]));
@@ -323,11 +375,19 @@ async function main() {
     snapshotsByPlayer.set(snapshot.playerId, list);
   }
 
+  const observationsByPlayer = new Map<number, Array<(typeof observationRows)[number]>>();
+  for (const observation of observationRows) {
+    const list = observationsByPlayer.get(observation.playerId) || [];
+    list.push(observation);
+    observationsByPlayer.set(observation.playerId, list);
+  }
+
   let written = 0;
   let withCurve = 0;
   for (const player of playerRows) {
     const position = primaryPosition(player.positions);
-    const weeklyMomentum = snapshotMomentum(snapshotsByPlayer.get(player.id) || [], position);
+    const weeklyMomentum = observationMomentum(observationsByPlayer.get(player.id) || [])
+      ?? snapshotMomentum(snapshotsByPlayer.get(player.id) || [], position);
     if (weeklyMomentum !== undefined) withCurve++;
 
     const profile: Profile = {

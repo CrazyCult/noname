@@ -435,7 +435,11 @@ export default function PlayerTable({
               const isStale = lastUpdated != null && staleThreshold != null
                 && (Date.now() - lastUpdated.getTime()) > staleThreshold;
               return (
-                <button key={int.value} onClick={() => setInterval(int.value)}
+                <button key={int.value} onClick={() => {
+                  setInterval(int.value);
+                  setPage(1);
+                  setSorting([{ id: 'progression', desc: true }]);
+                }}
                   title={lastUpdated ? `Mis à jour : ${lastUpdated.toLocaleString('fr-FR')}${isStale ? ' (données périmées)' : ''}` : undefined}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     isActive ? 'bg-orange-500/25 text-orange-300' : 'text-zinc-500 hover:text-zinc-300'

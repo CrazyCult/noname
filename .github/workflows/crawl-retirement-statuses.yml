@@ -1,0 +1,40 @@
+name: One-time Retirement Status Sync
+
+on:
+  workflow_run:
+    workflows: ["Crawl Players"]
+    types: [completed]
+
+jobs:
+  sync-retirement-statuses:
+    # The current replay uses the old crawler revision, before retirementYears
+    # existed. Run this reconciliation once after that exact replay, then never
+    # again automatically.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_sha == '308c922d660fb43d847fa963ff0040c6a88c5501'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Crawling
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync official pre-retirement statuses
+        run: npx tsx scripts/crawl-retirement-statuses.ts
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}

@@ -11,7 +11,7 @@ import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
   Minus, Loader2, ExternalLink, RotateCcw, ShoppingCart, EyeOff,
 } from 'lucide-react';
-import type { PlayerRow, MflProgression, ProgressionInterval } from '@/types/mfl';
+import type { PlayerRow, PlayerPrediction, MflProgression, ProgressionInterval } from '@/types/mfl';
 import { countryToFlag } from '@/lib/country-codes';
 
 const ALL_POSITIONS = [
@@ -52,6 +52,31 @@ function ProgressionBadge({ value }: { value: number }) {
   if (value > 0) return <span className="inline-flex items-center gap-0.5 text-emerald-400 text-[11px] font-semibold"><TrendingUp size={11} />+{value}</span>;
   if (value < 0) return <span className="inline-flex items-center gap-0.5 text-red-400 text-[11px] font-semibold"><TrendingDown size={11} />{value}</span>;
   return <span className="inline-flex items-center text-zinc-600 text-[11px]"><Minus size={11} /></span>;
+}
+
+function PredictionBadge({ prediction }: { prediction?: PlayerPrediction }) {
+  if (!prediction) {
+    return <span className="text-zinc-600 text-[10px]" title="La prédiction apparaîtra après le prochain calcul du modèle.">En attente</span>;
+  }
+
+  const gainPrefix = prediction.predictedGain > 0 ? '+' : '';
+  const confidenceColor = prediction.confidence >= 75
+    ? 'text-emerald-400'
+    : prediction.confidence >= 50 ? 'text-amber-400' : 'text-zinc-400';
+  const details = [
+    `OVR prévu : ${prediction.predictedOverall}`,
+    `Gain attendu : ${gainPrefix}${prediction.predictedGain}`,
+    `Confiance : ${prediction.confidence}% (${prediction.sampleSize} joueurs comparables)`,
+    `P(+10) ${prediction.probabilityGain10}% · P(+15) ${prediction.probabilityGain15}%`,
+    `P(+20) ${prediction.probabilityGain20}% · P(+25) ${prediction.probabilityGain25}% · P(+30) ${prediction.probabilityGain30}%`,
+  ].join('\n');
+
+  return (
+    <div title={details} className="inline-flex flex-col leading-tight cursor-help">
+      <span className="text-[11px] font-bold text-sky-300">{gainPrefix}{prediction.predictedGain} <span className="text-zinc-500 font-medium">→ {prediction.predictedOverall}</span></span>
+      <span className={`text-[9px] font-medium ${confidenceColor}`}>{prediction.confidence}% confiance</span>
+    </div>
+  );
 }
 
 const POS_COLORS: Record<string, string> = {
@@ -334,6 +359,11 @@ export default function PlayerTable({
           </span>
         );
       },
+    }),
+    columnHelper.accessor('prediction', {
+      header: 'Prédiction',
+      enableSorting: false,
+      cell: (info) => <PredictionBadge prediction={info.getValue()} />,
     }),
     columnHelper.accessor('progression', {
       header: 'Progression',

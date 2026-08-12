@@ -1,5 +1,6 @@
 /** Backfill immutable player experience events from the public MFL history API. */
 import 'dotenv/config';
+import { appendFileSync } from 'node:fs';
 import { getDb } from '../src/db';
 import { players, playerHistoryEvents } from '../src/db/schema';
 import { gt, sql } from 'drizzle-orm';
@@ -41,6 +42,11 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function writeWorkflowOutputs(nextStartAfterId: number, hasMore: boolean) {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (!outputPath) return;
+  appendFileSync(outputPath, `next_start_after_id=${nextStartAfterId}\nhas_more=${hasMore}\n`);
+}
 function retryAfterMs(response: Response) {
   const value = response.headers.get('retry-after');
   if (!value) return null;
@@ -114,6 +120,7 @@ async function main() {
     .limit(MAX_PLAYERS);
 
   if (ids.length === 0) {
+    writeWorkflowOutputs(START_AFTER_ID, false);
     console.log(`[History] no players found after ID ${START_AFTER_ID}`);
     return;
   }
@@ -159,6 +166,8 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
+  const hasMore = ids.length === MAX_PLAYERS;
+  writeWorkflowOutputs(lastCompletedId, hasMore);
   console.log(`[History] complete: ${succeeded} succeeded, ${failed} failed`);
   console.log(`[History] Next run: start_after_id=${lastCompletedId}`);
 }

@@ -93,6 +93,8 @@ export interface PlayerRow {
   lastName: string;
   overall: number;
   age: number;
+  // Official MFL retirement window; absent until MFL has declared it.
+  retirementYears: number | null;
   positions: string[];
   nationalities: string[];
   ownerName: string | null;

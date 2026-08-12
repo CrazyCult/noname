@@ -30,12 +30,12 @@ jobs:
       - run: npm ci
       - run: npm run crawl:history
         env:
-          DB_HOST: \${{ secrets.DB_HOST }}
-          DB_USER: \${{ secrets.DB_USER }}
-          DB_PASSWORD: \${{ secrets.DB_PASSWORD }}
-          DB_NAME: \${{ secrets.DB_NAME }}
-          DB_PORT: \${{ secrets.DB_PORT }}
-          MFL_API_URL: \${{ secrets.MFL_API_URL }}
-          HISTORY_START_AFTER_ID: \${{ inputs.start_after_id }}
-          HISTORY_MAX_PLAYERS: \${{ inputs.max_players }}
-          HISTORY_DELAY_MS: \${{ inputs.delay_ms }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}
+          HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}
+          HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
+          HISTORY_DELAY_MS: ${{ inputs.delay_ms }}

@@ -22,7 +22,7 @@ class MflThrottleError extends Error {
     readonly playerId: number,
     readonly status: number,
   ) {
-    super(\`MFL kept returning HTTP \${status} for player \${playerId}\`);
+    super(`MFL kept returning HTTP ${status} for player ${playerId}`);
     this.name = 'MflThrottleError';
   }
 }
@@ -56,7 +56,7 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
   for (let attempt = 1; attempt <= MAX_THROTTLE_ATTEMPTS; attempt++) {
     let response: Response;
     try {
-      response = await fetch(\`\${BASE_URL}/players/\${playerId}/experiences/history\`, {
+      response = await fetch(`${BASE_URL}/players/${playerId}/experiences/history`, {
         headers: {
           Accept: 'application/json',
           'User-Agent': 'mfl-scout-history-backfill/1.0',
@@ -65,7 +65,7 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
     } catch (error) {
       if (attempt === MAX_THROTTLE_ATTEMPTS) throw error;
       const waitMs = 2 ** attempt * 1000;
-      console.warn(\`[History] player \${playerId}: network error; retrying in \${waitMs / 1000}s\`);
+      console.warn(`[History] player ${playerId}: network error; retrying in ${waitMs / 1000}s`);
       await sleep(waitMs);
       continue;
     }
@@ -75,7 +75,7 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
     const isThrottle = response.status === 403 || response.status === 429;
     const isServerError = response.status >= 500;
     if (!isThrottle && !isServerError) {
-      throw new Error(\`HTTP \${response.status}\`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     if (isThrottle) {
@@ -83,28 +83,28 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
         throw new MflThrottleError(playerId, response.status);
       }
       const waitMs = Math.max(retryAfterMs(response) ?? 0, RATE_LIMIT_COOLDOWN_MS);
-      console.warn(\`[History] player \${playerId}: HTTP \${response.status}; waiting \${Math.ceil(waitMs / 1000)}s before retrying\`);
+      console.warn(`[History] player ${playerId}: HTTP ${response.status}; waiting ${Math.ceil(waitMs / 1000)}s before retrying`);
       await sleep(waitMs);
       continue;
     }
 
     if (attempt === MAX_THROTTLE_ATTEMPTS) {
-      throw new Error(\`HTTP \${response.status}\`);
+      throw new Error(`HTTP ${response.status}`);
     }
     const waitMs = 2 ** attempt * 1000;
-    console.warn(\`[History] player \${playerId}: HTTP \${response.status}; retrying in \${waitMs / 1000}s\`);
+    console.warn(`[History] player ${playerId}: HTTP ${response.status}; retrying in ${waitMs / 1000}s`);
     await sleep(waitMs);
   }
 
-  throw new Error(\`No response for player \${playerId}\`);
+  throw new Error(`No response for player ${playerId}`);
 }
 
 async function main() {
   if (requestedDelayMs < MIN_DELAY_MS) {
-    console.warn(\`[History] HISTORY_DELAY_MS was raised to the safe minimum of \${MIN_DELAY_MS}ms\`);
+    console.warn(`[History] HISTORY_DELAY_MS was raised to the safe minimum of ${MIN_DELAY_MS}ms`);
   }
   if (requestedMaxPlayers > MAX_PLAYERS_PER_RUN) {
-    console.warn(\`[History] HISTORY_MAX_PLAYERS was capped at \${MAX_PLAYERS_PER_RUN}\`);
+    console.warn(`[History] HISTORY_MAX_PLAYERS was capped at ${MAX_PLAYERS_PER_RUN}`);
   }
 
   const db = await getDb();
@@ -114,11 +114,11 @@ async function main() {
     .limit(MAX_PLAYERS);
 
   if (ids.length === 0) {
-    console.log(\`[History] no players found after ID \${START_AFTER_ID}\`);
+    console.log(`[History] no players found after ID ${START_AFTER_ID}`);
     return;
   }
 
-  console.log(\`[History] starting \${ids.length} players after ID \${START_AFTER_ID} at one request every \${DELAY_MS}ms or slower\`);
+  console.log(`[History] starting ${ids.length} players after ID ${START_AFTER_ID} at one request every ${DELAY_MS}ms or slower`);
 
   let succeeded = 0;
   let failed = 0;
@@ -135,8 +135,8 @@ async function main() {
           fetchedAt: new Date(),
         }))).onDuplicateKeyUpdate({
           set: {
-            values: sql\`VALUES(\${playerHistoryEvents.values})\`,
-            fetchedAt: sql\`NOW()\`,
+            values: sql`VALUES(${playerHistoryEvents.values})`,
+            fetchedAt: sql`NOW()`,
           },
         });
       }
@@ -144,23 +144,23 @@ async function main() {
       lastCompletedId = id;
     } catch (error) {
       if (error instanceof MflThrottleError) {
-        console.error(\`[History] MFL rate limit persists at player \${id}. The imported rows are safe.\`);
-        console.error(\`[History] Resume later with start_after_id=\${lastCompletedId}.\`);
+        console.error(`[History] MFL rate limit persists at player ${id}. The imported rows are safe.`);
+        console.error(`[History] Resume later with start_after_id=${lastCompletedId}.`);
         throw error;
       }
       failed++;
       lastCompletedId = id;
-      console.error(\`[History] player \${id}:\`, error instanceof Error ? error.message : error);
+      console.error(`[History] player ${id}:`, error instanceof Error ? error.message : error);
     }
 
     if ((index + 1) % 100 === 0) {
-      console.log(\`[History] \${index + 1}/\${ids.length}, failed=\${failed}, resume_after=\${lastCompletedId}\`);
+      console.log(`[History] ${index + 1}/${ids.length}, failed=${failed}, resume_after=${lastCompletedId}`);
     }
     await sleep(DELAY_MS);
   }
 
-  console.log(\`[History] complete: \${succeeded} succeeded, \${failed} failed\`);
-  console.log(\`[History] Next run: start_after_id=\${lastCompletedId}\`);
+  console.log(`[History] complete: ${succeeded} succeeded, ${failed} failed`);
+  console.log(`[History] Next run: start_after_id=${lastCompletedId}`);
 }
 
 main().catch((error) => {

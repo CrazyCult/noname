@@ -1,9 +1,9 @@
 /**
- * Progression Monitoring Crawler — avec crawl_logs
+ * Progression Monitoring Crawler â€” avec crawl_logs
  */
 import 'dotenv/config';
 import { getDb } from '../src/db';
-import { players, progressions, crawlLogs } from '../src/db/schema';
+import { players, progressions, progressionObservations, crawlLogs } from '../src/db/schema';
 import { fetchProgressions } from '../src/lib/mfl-api';
 import { sql, eq } from 'drizzle-orm';
 import type { ProgressionInterval } from '../src/types/mfl';
@@ -54,7 +54,7 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
   const startTime = Date.now();
   let processed = 0, skipped = 0, inserted = 0, failed = 0;
 
-  // ── Log début ──
+  // â”€â”€ Log dÃ©but â”€â”€
   const logResult = await db.insert(crawlLogs).values({
     type: 'progressions',
     interval,
@@ -67,7 +67,7 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
 
   const totalBatches = Math.ceil(playerIds.length / BATCH_SIZE);
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`  [${interval}] Starting — ${playerIds.length} players, ${totalBatches} batches`);
+  console.log(`  [${interval}] Starting â€” ${playerIds.length} players, ${totalBatches} batches`);
   console.log(`${'='.repeat(60)}`);
 
   for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
@@ -96,6 +96,13 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
 
     if (values.length > 0) {
       try {
+        // Preserve the observation before refreshing the current-state table.
+        await db.insert(progressionObservations).values(values.map(({ playerId, interval, ...stats }) => ({
+          playerId,
+          interval,
+          ...stats,
+          observedAt: new Date(),
+        })));
         await db.insert(progressions).values(values).onDuplicateKeyUpdate({
           set: {
             overall: sql`VALUES(${sql.raw('`overall`')})`,
@@ -105,7 +112,7 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
             dribbling: sql`VALUES(${sql.raw('`dribbling`')})`,
             defense: sql`VALUES(${sql.raw('`defense`')})`,
             physical: sql`VALUES(${sql.raw('`physical`')})`,
-            // Force timestamp refresh even when values are unchanged (e.g. 0→0),
+            // Force timestamp refresh even when values are unchanged (e.g. 0â†’0),
             // so the orphan purge can correctly identify untouched rows.
             updatedAt: sql`NOW()`,
           },
@@ -121,7 +128,7 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
     if (batchNum % 50 === 0 || batchNum === totalBatches) {
       const elapsed = Date.now() - startTime;
       const eta = ((elapsed / batchNum) * (totalBatches - batchNum));
-      console.log(`[${interval}] ${batchNum}/${totalBatches} — ${processed}/${playerIds.length} — ETA: ${formatDuration(eta)}`);
+      console.log(`[${interval}] ${batchNum}/${totalBatches} â€” ${processed}/${playerIds.length} â€” ETA: ${formatDuration(eta)}`);
     }
 
     if (i + BATCH_SIZE < playerIds.length) await sleep(DELAY_MS);
@@ -147,10 +154,10 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
   const playersProgressed = Number(dbRow.progressed ?? 0);
 
   const durationMs = Date.now() - startTime;
-  console.log(`[${interval}] Done in ${formatDuration(durationMs)} — ${inserted} inserted, ${skipped} skipped, ${failed} failed, ${purged} orphans purged`);
+  console.log(`[${interval}] Done in ${formatDuration(durationMs)} â€” ${inserted} inserted, ${skipped} skipped, ${failed} failed, ${purged} orphans purged`);
   console.log(`[${interval}] DB: ${dbRow.total} rows total, ${playersProgressed} with OVR >= 1`);
 
-  // ── Log fin ──
+  // â”€â”€ Log fin â”€â”€
   if (logId) {
     await db.update(crawlLogs)
       .set({
@@ -178,7 +185,7 @@ async function main() {
   else if (arg) { console.error(`Invalid argument "${arg}"`); process.exit(1); }
   else intervals = [...DAILY_INTERVALS];
 
-  console.log(`Strategy: ${intervals.join(' → ')}\n`);
+  console.log(`Strategy: ${intervals.join(' â†’ ')}\n`);
 
   const globalStart = Date.now();
   for (const interval of intervals) {

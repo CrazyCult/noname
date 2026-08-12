@@ -6,6 +6,8 @@ export interface MflPlayer {
     lastName: string;
     overall: number;
     age: number;
+    // Official MFL field, present only once a retirement window is declared.
+    retirementYears?: number;
     positions: string[];
     nationalities: string[];
     pace: number;

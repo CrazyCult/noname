@@ -2,9 +2,9 @@ name: Daily Crawl
 
 on:
   schedule:
-    # 10h10 Paris (09:10 UTC hiver / 08:10 UTC Ã©tÃ©)
+    # 10h10 Paris (09:10 UTC hiver / 08:10 UTC été)
     - cron: '10 9 * * *'
-    # 22h50 Paris (21:50 UTC hiver / 20:50 UTC Ã©tÃ©)
+    # 22h50 Paris (21:50 UTC hiver / 20:50 UTC été)
     - cron: '50 21 * * *'
   workflow_dispatch:
 
@@ -38,10 +38,10 @@ jobs:
               ssl: { rejectUnauthorized: true }
             });
             const [rows] = await conn.execute('SELECT 1 as ok');
-            console.log('âœ… DB connected:', rows[0]);
+            console.log('✅ DB connected:', rows[0]);
             await conn.end();
           }
-          test().catch(e => { console.error('âŒ DB error:', e.message); process.exit(1); });
+          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
           "
         env:
           DB_HOST: ${{ secrets.DB_HOST }}

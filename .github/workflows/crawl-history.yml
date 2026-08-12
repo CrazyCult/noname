@@ -1,0 +1,31 @@
+name: Backfill Player History
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_after_id:
+        description: Resume after player ID
+        required: false
+        default: '0'
+
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: Crawling
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run crawl:history
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}
+          HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}

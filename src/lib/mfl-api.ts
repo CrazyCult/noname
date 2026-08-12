@@ -18,7 +18,9 @@ export async function fetchPlayersPage(
 ): Promise<MflPlayer[]> {
   const params = new URLSearchParams({
     limit: '1500',
-    excludingMflOwned: 'true',
+    // Keep MFL-owned/development players: excluding them biases the historical
+    // training population and can hide newly minted players.
+    excludingMflOwned: 'false',
   });
 
   if (beforePlayerId) {

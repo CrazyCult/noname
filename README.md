@@ -27,6 +27,9 @@ npm run crawl:players
 # 5. Récupérer les progressions
 npm run crawl:progressions        # Default: WEEK
 npm run crawl:progressions MONTH  # Ou: 24H, WEEK, MONTH, ALL, CURRENT_SEASON
+npm run crawl:history             # Backfill des événements historiques MFL
+npm run crawl:snapshots           # Snapshot immuable des stats absolues
+npm run predict:progressions      # Baseline KNN explicable
 
 # 6. Lancer le serveur de développement
 npm run dev
@@ -63,6 +66,8 @@ src/
 | `npm run build` | Build de production |
 | `npm run crawl:players` | Indexer tous les joueurs MFL |
 | `npm run crawl:progressions [interval]` | Mettre à jour les progressions |
+| `npm run crawl:history` | Reprendre et conserver l'historique individuel MFL |
+| `npm run predict:progressions` | Calculer gain attendu et probabilités +10…+30 |
 | `npm run db:push` | Appliquer le schéma à MySQL |
 | `npm run db:studio` | Interface web Drizzle Studio |
 

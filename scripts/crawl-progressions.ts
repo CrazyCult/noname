@@ -3,7 +3,7 @@
  */
 import 'dotenv/config';
 import { getDb } from '../src/db';
-import { players, progressions, crawlLogs } from '../src/db/schema';
+import { players, progressions, progressionObservations, crawlLogs } from '../src/db/schema';
 import { fetchProgressions } from '../src/lib/mfl-api';
 import { sql, eq } from 'drizzle-orm';
 import type { ProgressionInterval } from '../src/types/mfl';
@@ -96,6 +96,13 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
 
     if (values.length > 0) {
       try {
+        // Preserve the observation before refreshing the current-state table.
+        await db.insert(progressionObservations).values(values.map(({ playerId, interval, ...stats }) => ({
+          playerId,
+          interval,
+          ...stats,
+          observedAt: new Date(),
+        })));
         await db.insert(progressions).values(values).onDuplicateKeyUpdate({
           set: {
             overall: sql`VALUES(${sql.raw('`overall`')})`,

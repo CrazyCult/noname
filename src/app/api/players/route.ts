@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
-import { players, progressions } from '@/db/schema';
+import { players, progressions, playerPredictions } from '@/db/schema';
 import { desc, asc, sql, eq, and } from 'drizzle-orm';
-import type { PlayerRow, ProgressionInterval } from '@/types/mfl';
+import type { PlayerRow, PlayerPrediction, ProgressionInterval } from '@/types/mfl';
 import { calculateAllPositionOvrs } from '@/lib/ovr-calculator';
 
 export async function GET(request: NextRequest) {
@@ -201,6 +201,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Prediction map ──
+    const predictionMap: Record<number, PlayerPrediction> = {};
+    const playerIds = playerRows.map((player) => player.id);
+    if (playerIds.length > 0) {
+      const idsJoin = sql.join(playerIds.map((id) => sql`${id}`), sql`, `);
+      const predictionRows = await db
+        .select()
+        .from(playerPredictions)
+        .where(sql`${playerPredictions.playerId} IN (${idsJoin})`);
+
+      for (const prediction of predictionRows) {
+        predictionMap[prediction.playerId] = {
+          predictedGain: prediction.predictedGain,
+          predictedOverall: prediction.predictedOverall,
+          probabilityGain10: prediction.probabilityGain10,
+          probabilityGain15: prediction.probabilityGain15,
+          probabilityGain20: prediction.probabilityGain20,
+          probabilityGain25: prediction.probabilityGain25,
+          probabilityGain30: prediction.probabilityGain30,
+          sampleSize: prediction.sampleSize,
+          confidence: prediction.confidence,
+          modelVersion: prediction.modelVersion,
+        };
+      }
+    }
+
     // ── Build response ──
     const data: PlayerRow[] = playerRows.map((p) => {
       const prog = progressionMap[p.id];
@@ -238,6 +264,7 @@ export async function GET(request: NextRequest) {
         listingPrice: p.listingPrice ?? null,
         isDevCenter: (p as any).isDevCenter ?? false,
         progression: prog || undefined,
+        prediction: predictionMap[p.id],
         positionOvrs: positionOvrs.map(({ position, ovr }) => ({ position, ovr })),
       };
     });

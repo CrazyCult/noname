@@ -1,9 +1,14 @@
 /**
- * Explainable nearest-neighbour model built from completed MFL trajectories.
+ * Retired-career nearest-neighbour model.
  *
- * It matches players on age, OVR, primary-position family, the six attributes,
- * and the observed short-term progression curve. Minutes and match ratings are
- * deliberately excluded: they are not returned by the MFL endpoints we ingest.
+ * Complete, sustained careers are used as training data. Each historical state
+ * predicts the OVR still available until retirement, rather than replaying the
+ * player's entire gain from minting. This keeps the target aligned with the
+ * age and OVR of the player being viewed.
+ *
+ * The public MFL endpoints collected here do not expose match appearances,
+ * minutes, or ratings. "Activity" below is therefore an observable-career
+ * quality gate, never a claim that match participation is proven.
  */
 import 'dotenv/config';
 import { getDb } from '../src/db';
@@ -26,13 +31,21 @@ const ATTRIBUTE_KEYS = [
   'goalkeeping',
 ] as const;
 const STATE_KEYS = ['age', 'overall', ...ATTRIBUTE_KEYS] as const;
-const MODEL_VERSION = 'knn-profile-curve-v2';
+const MODEL_VERSION = 'knn-retired-active-career-v3';
 const THRESHOLDS = [10, 15, 20, 25, 30] as const;
 const MIN_NEIGHBOURS = 20;
 const MAX_NEIGHBOURS = 200;
 const MIN_CURVE_DAYS = 7;
 const TARGET_CURVE_DAYS = 28;
 const MAX_CURVE_DAYS = 56;
+
+// MFL seasons last six weeks. A player can retire from age 32 onwards, but the
+// guide says most retire between 34 and 36. This intentionally conservative
+// threshold avoids treating an ordinary mid-career player as terminal.
+const RETIRED_AGE_FLOOR = 34;
+const MIN_CAREER_AGE_SPAN = 2;
+const MIN_ACTIVITY_SCORE = 70;
+const SEASON_DAYS = 42;
 
 type AttributeKey = (typeof ATTRIBUTE_KEYS)[number];
 type StateKey = (typeof STATE_KEYS)[number];
@@ -52,12 +65,14 @@ type HistoryPoint = {
   state: State;
 };
 
-type Trajectory = Profile & {
+type TrainingSample = Profile & {
   playerId: number;
-  finalGain: number;
+  remainingGain: number;
+  activityScore: number;
+  retirementAge: number;
 };
 
-type Neighbour = Trajectory & {
+type Neighbour = TrainingSample & {
   distance: number;
 };
 
@@ -123,18 +138,16 @@ function profileMomentum(from: Profile, to: Profile, days: number): number | und
     ? attributeChanges.reduce((sum, change) => sum + change, 0) / attributeChanges.length
     : to.overall - from.overall;
 
-  // OVR carries more product meaning while the attributes retain the shape of
-  // the player's development. Normalising to one week makes 7-56 day curves comparable.
   const blendedChange = (to.overall - from.overall) * 0.6 + attributeChange * 0.4;
   return Number((blendedChange * 7 / days).toFixed(3));
 }
 
 function historyMomentum(points: HistoryPoint[], start: Profile, startDate: Date): number | undefined {
   const candidates = points
-    .map((point) => {
-      const days = (point.date.getTime() - startDate.getTime()) / 86_400_000;
-      return { point, days };
-    })
+    .map((point) => ({
+      point,
+      days: (point.date.getTime() - startDate.getTime()) / 86_400_000,
+    }))
     .filter(({ days }) => days >= MIN_CURVE_DAYS && days <= MAX_CURVE_DAYS)
     .sort((a, b) => Math.abs(a.days - TARGET_CURVE_DAYS) - Math.abs(b.days - TARGET_CURVE_DAYS));
 
@@ -165,16 +178,18 @@ function observationMomentum(
       observation.defense,
       observation.physical,
     ].map(asNumber).filter((value): value is number => value !== undefined);
+
     const averageAttributeGain = attributes.length
       ? attributes.reduce((sum, value) => sum + value, 0) / attributes.length
       : asNumber(observation.overall) ?? 0;
+
     return (asNumber(observation.overall) ?? 0) * 0.6 + averageAttributeGain * 0.4;
   };
 
-  // WEEK is the direct MFL progression curve. Keep several observations to
-  // smooth a one-off event; use 24H only while a weekly curve is unavailable.
   const week = observations.filter((observation) => observation.interval === 'WEEK').slice(-4);
-  if (week.length) return Number((week.reduce((sum, observation) => sum + signal(observation), 0) / week.length).toFixed(3));
+  if (week.length) {
+    return Number((week.reduce((sum, observation) => sum + signal(observation), 0) / week.length).toFixed(3));
+  }
 
   const day = observations.filter((observation) => observation.interval === '24H').slice(-4);
   if (!day.length) return undefined;
@@ -201,8 +216,8 @@ function snapshotMomentum(
   if (days < MIN_CURVE_DAYS) return undefined;
 
   const toState = (snapshot: (typeof snapshots)[number]): State => ({
-    overall: snapshot.overall,
     age: 0,
+    overall: snapshot.overall,
     pace: snapshot.pace ?? undefined,
     shooting: snapshot.shooting ?? undefined,
     passing: snapshot.passing ?? undefined,
@@ -213,6 +228,74 @@ function snapshotMomentum(
   const from = profileFromState(toState(first), position);
   const to = profileFromState(toState(last), position);
   return from && to ? profileMomentum(from, to, days) : undefined;
+}
+
+function activityScore(points: HistoryPoint[], start: Profile, end: Profile, startDate: Date): number {
+  const careerSeasons = end.age - start.age;
+  const careerDays = (points[points.length - 1].date.getTime() - startDate.getTime()) / 86_400_000;
+  const distinctAges = new Set(
+    points
+      .map((point) => asNumber(point.state.age))
+      .filter((age): age is number => age !== undefined)
+  ).size;
+
+  // A complete historical career should cover its season-age span, have
+  // repeated progress records, and expose states across that span. These are
+  // reliability signals only; they cannot certify individual match minutes.
+  const calendarCoverage = Math.min(1, careerDays / Math.max(SEASON_DAYS, careerSeasons * SEASON_DAYS * 0.75));
+  const recordDensity = Math.min(1, points.length / Math.max(8, careerSeasons * 4));
+  const ageCoverage = Math.min(1, distinctAges / Math.max(1, careerSeasons + 1));
+  return Math.round(100 * (calendarCoverage * 0.4 + recordDensity * 0.4 + ageCoverage * 0.2));
+}
+
+function isReliableRetiredCareer(
+  points: HistoryPoint[],
+  start: Profile,
+  end: Profile,
+  startDate: Date
+): { eligible: boolean; activityScore: number } {
+  const score = activityScore(points, start, end, startDate);
+  return {
+    eligible:
+      end.age >= RETIRED_AGE_FLOOR &&
+      end.age - start.age >= MIN_CAREER_AGE_SPAN &&
+      score >= MIN_ACTIVITY_SCORE,
+    activityScore: score,
+  };
+}
+
+function buildTrainingSamples(
+  playerId: number,
+  points: HistoryPoint[],
+  start: Profile,
+  startDate: Date,
+  end: Profile
+): TrainingSample[] {
+  const career = isReliableRetiredCareer(points, start, end, startDate);
+  if (!career.eligible) return [];
+
+  // One state per age keeps a player with many raw events from dominating the
+  // training set. The first state of a season is the fairest comparison to a
+  // player currently at that same age.
+  const stateByAge = new Map<number, Profile>();
+  for (const point of points) {
+    const profile = profileFromState(point.state, start.position);
+    if (!profile || profile.age > end.age || stateByAge.has(profile.age)) continue;
+    stateByAge.set(profile.age, {
+      ...profile,
+      weeklyMomentum: historyMomentum(points, profile, point.date),
+    });
+  }
+
+  return [...stateByAge.values()]
+    .filter((profile) => profile.age < end.age && end.overall >= profile.overall)
+    .map((profile) => ({
+      ...profile,
+      playerId,
+      remainingGain: end.overall - profile.overall,
+      activityScore: career.activityScore,
+      retirementAge: end.age,
+    }));
 }
 
 function statDistance(left: Stats, right: Stats): number {
@@ -232,7 +315,7 @@ function statDistance(left: Stats, right: Stats): number {
 function positionDistance(left?: string, right?: string): number {
   if (!left || !right) return 0;
   if (left === right) return 0;
-  return positionFamily(left) === positionFamily(right) ? 1.5 : 4;
+  return positionFamily(left) === positionFamily(right) ? 2 : 5;
 }
 
 function curveDistance(left?: number, right?: number): number {
@@ -250,6 +333,30 @@ function distance(left: Profile, right: Profile): number {
   );
 }
 
+function selectNeighbours(profile: Profile, samples: TrainingSample[]): Neighbour[] {
+  const exactPosition = profile.position
+    ? samples.filter((sample) => sample.position === profile.position)
+    : [];
+
+  // Primary position defines OVR and XP attribute weighting. Prefer it when
+  // enough complete careers exist; otherwise fall back to the full sample.
+  const pool = new Set(exactPosition.map((sample) => sample.playerId)).size >= MIN_NEIGHBOURS
+    ? exactPosition
+    : samples;
+
+  const seenPlayers = new Set<number>();
+  const neighbours: Neighbour[] = [];
+  for (const candidate of pool
+    .map((sample) => ({ ...sample, distance: distance(profile, sample) }))
+    .sort((a, b) => a.distance - b.distance)) {
+    if (seenPlayers.has(candidate.playerId)) continue;
+    seenPlayers.add(candidate.playerId);
+    neighbours.push(candidate);
+    if (neighbours.length === MAX_NEIGHBOURS) break;
+  }
+  return neighbours;
+}
+
 function weight(neighbour: Neighbour): number {
   return 1 / (1 + neighbour.distance);
 }
@@ -262,7 +369,7 @@ function weightedMean(neighbours: Neighbour[], value: (neighbour: Neighbour) => 
 
 function probability(neighbours: Neighbour[], threshold: number): number {
   return Math.round(
-    100 * weightedMean(neighbours, (neighbour) => neighbour.finalGain >= threshold ? 1 : 0)
+    100 * weightedMean(neighbours, (neighbour) => neighbour.remainingGain >= threshold ? 1 : 0)
   );
 }
 
@@ -270,8 +377,15 @@ function confidence(neighbours: Neighbour[], hasCurve: boolean): number {
   const sampleCoverage = Math.min(1, neighbours.length / 100);
   const meanDistance = weightedMean(neighbours, (neighbour) => neighbour.distance);
   const similarity = Math.max(0, 1 - Math.min(30, meanDistance) / 30);
+  const activityReliability = weightedMean(neighbours, (neighbour) => neighbour.activityScore) / 100;
   const curveCoverage = hasCurve ? 1 : 0.8;
-  return Math.max(15, Math.min(95, Math.round(100 * (sampleCoverage * 0.6 + similarity * 0.4) * curveCoverage)));
+  return Math.max(
+    15,
+    Math.min(
+      95,
+      Math.round(100 * (sampleCoverage * 0.5 + similarity * 0.3 + activityReliability * 0.2) * curveCoverage)
+    )
+  );
 }
 
 async function main() {
@@ -347,25 +461,24 @@ async function main() {
     }
   }
 
-  const trajectories: Trajectory[] = [];
+  const trainingSamples: TrainingSample[] = [];
+  const retiredCareerIds = new Set<number>();
   for (const [playerId, start] of starts) {
     const endState = states.get(playerId);
-    const end = endState
-      ? profileFromState(endState, start.profile.position)
-      : null;
-    if (!end || end.age <= start.profile.age) continue;
+    const end = endState ? profileFromState(endState, start.profile.position) : null;
+    if (!end) continue;
 
-    const weeklyMomentum = historyMomentum(
+    const samples = buildTrainingSamples(
+      playerId,
       pointsByPlayer.get(playerId) || [],
       start.profile,
-      start.date
+      start.date,
+      end
     );
-    trajectories.push({
-      ...start.profile,
-      weeklyMomentum,
-      playerId,
-      finalGain: end.overall - start.profile.overall,
-    });
+    if (samples.length) {
+      retiredCareerIds.add(playerId);
+      trainingSamples.push(...samples);
+    }
   }
 
   const snapshotsByPlayer = new Map<number, Array<(typeof snapshotRows)[number]>>();
@@ -406,15 +519,13 @@ async function main() {
       weeklyMomentum,
     };
 
-    const neighbours = trajectories
-      .filter((trajectory) => trajectory.playerId !== player.id)
-      .map((trajectory) => ({ ...trajectory, distance: distance(profile, trajectory) }))
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, MAX_NEIGHBOURS);
-
+    const neighbours = selectNeighbours(profile, trainingSamples);
     if (neighbours.length < MIN_NEIGHBOURS) continue;
 
-    const predictedGain = Math.max(0, Math.round(weightedMean(neighbours, (neighbour) => neighbour.finalGain)));
+    const predictedGain = Math.max(
+      0,
+      Math.round(weightedMean(neighbours, (neighbour) => neighbour.remainingGain))
+    );
     const probabilities = THRESHOLDS.map((threshold) => probability(neighbours, threshold));
     const value = {
       playerId: player.id,
@@ -450,8 +561,9 @@ async function main() {
   }
 
   console.log(
-    '[Predictor] ' + written + ' predictions from ' + trajectories.length +
-    ' historical trajectories; ' + withCurve + ' players have a recent curve (' + MODEL_VERSION + ')'
+    '[Predictor] ' + written + ' predictions from ' + retiredCareerIds.size +
+    ' reliable retired careers (' + trainingSamples.length + ' training states); ' +
+    withCurve + ' players have a recent curve (' + MODEL_VERSION + ')'
   );
 }
 

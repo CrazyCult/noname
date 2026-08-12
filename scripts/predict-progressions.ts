@@ -19,7 +19,7 @@ import {
   playerSnapshots,
   progressionObservations,
 } from '../src/db/schema';
-import { asc, gte, sql } from 'drizzle-orm';
+import { asc, gte, ne, sql } from 'drizzle-orm';
 
 const ATTRIBUTE_KEYS = [
   'pace',
@@ -494,6 +494,17 @@ async function main() {
     list.push(observation);
     observationsByPlayer.set(observation.playerId, list);
   }
+
+  if (retiredCareerIds.size < MIN_NEIGHBOURS) {
+    throw new Error(
+      '[Predictor] Need at least ' + MIN_NEIGHBOURS +
+      ' reliable retired careers; found ' + retiredCareerIds.size
+    );
+  }
+
+  // Never present an old model as a current v3 prediction.
+  await db.delete(playerPredictions)
+    .where(ne(playerPredictions.modelVersion, MODEL_VERSION));
 
   let written = 0;
   let withCurve = 0;

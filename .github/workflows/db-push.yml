@@ -1,4 +1,4 @@
-name: DB Push (migrate schema)
+name: DB migrations
 
 on:
   workflow_dispatch:
@@ -6,9 +6,10 @@ on:
     branches: [main]
     paths:
       - 'src/db/schema.ts'
+      - '.github/workflows/db-push.yml'
 
 jobs:
-  db-push:
+  db-migrate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: Crawling
@@ -23,8 +24,56 @@ jobs:
 
       - run: npm ci
 
-      - name: Push schema to DB
-        run: npm run db:push
+      # Drizzle's schema push is blocked by an old, unrelated crawl_logs primary-key
+      # mismatch. Keep migrations explicit and idempotent so a failed unrelated table
+      # can never take the player list offline.
+      - name: Add official retirement field
+        run: |
+          node <<'NODE'
+          const mysql = require('mysql2/promise');
+
+          async function migrate() {
+            const config = {
+              host: process.env.DB_HOST,
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              database: process.env.DB_NAME,
+              port: Number(process.env.DB_PORT) || 3306,
+            };
+
+            if (config.host?.includes('tidbcloud')) {
+              config.ssl = { rejectUnauthorized: true };
+            }
+
+            const connection = await mysql.createConnection(config);
+            try {
+              const [columns] = await connection.query(
+                `SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'players'
+                   AND column_name = 'retirement_years'
+                 LIMIT 1`,
+              );
+
+              if (columns.length === 0) {
+                await connection.query(
+                  'ALTER TABLE \`players\` ADD COLUMN \`retirement_years\` INT NULL AFTER \`age\`',
+                );
+                console.log('Added players.retirement_years.');
+              } else {
+                console.log('players.retirement_years already exists.');
+              }
+            } finally {
+              await connection.end();
+            }
+          }
+
+          migrate().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}

@@ -140,7 +140,7 @@ export const playerPredictions = mysqlTable(
   }
 );
 
-// â”€â”€ Historique des crawls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Historique des crawls ──────────────────────────────
 export const crawlLogs = mysqlTable(
   'crawl_logs',
   {

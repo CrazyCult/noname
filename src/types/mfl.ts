@@ -70,6 +70,20 @@ export type ProgressionInterval =
   | 'ALL'
   | 'CURRENT_SEASON';
 
+/** Stored progression forecast for a player. */
+export interface PlayerPrediction {
+  predictedGain: number;
+  predictedOverall: number;
+  probabilityGain10: number;
+  probabilityGain15: number;
+  probabilityGain20: number;
+  probabilityGain25: number;
+  probabilityGain30: number;
+  sampleSize: number;
+  confidence: number;
+  modelVersion: string;
+}
+
 /** Frontend-facing player with optional progression data */
 export interface PlayerRow {
   id: number;
@@ -85,6 +99,7 @@ export interface PlayerRow {
   listingPrice: number | null;
   isDevCenter: boolean;
   progression?: MflProgression;
+  prediction?: PlayerPrediction;
   positionOvrs: { position: string; ovr: number }[];
 }
 

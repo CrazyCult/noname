@@ -53,6 +53,16 @@ jobs:
           HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
           HISTORY_DELAY_MS: ${{ inputs.delay_ms }}
 
+      - name: Refresh predictions after the full backfill
+        if: success() && steps.history.outputs.has_more == 'false'
+        run: npm run predict:progressions
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
       - name: Queue next history batch
         if: success() && inputs.chain && steps.history.outputs.has_more == 'true'
         env:

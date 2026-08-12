@@ -118,6 +118,22 @@ function OverallBadge({ value }: { value: number }) {
   return <span className={`font-bold text-base ${color}`}>{value}</span>;
 }
 
+function RetirementAge({ age, retirementYears }: { age: number; retirementYears: number | null }) {
+  const color = retirementYears === 1
+    ? 'text-red-400'
+    : retirementYears === 2
+      ? 'text-orange-400'
+      : retirementYears === 3
+        ? 'text-yellow-400'
+        : 'text-zinc-300';
+
+  const title = retirementYears != null && retirementYears <= 3
+    ? `Retraite déclarée par MFL : ${retirementYears} an${retirementYears > 1 ? 's' : ''} restant${retirementYears > 1 ? 's' : ''}.`
+    : undefined;
+
+  return <span className={`font-medium ${color}`} title={title}>{age}</span>;
+}
+
 function FilterInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <input type="number" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
@@ -320,7 +336,12 @@ export default function PlayerTable({
     }),
     columnHelper.accessor('age', {
       header: 'Âge',
-      cell: (info) => <span className="text-zinc-300">{info.getValue()}</span>,
+      cell: (info) => (
+        <RetirementAge
+          age={info.getValue()}
+          retirementYears={info.row.original.retirementYears}
+        />
+      ),
     }),
     columnHelper.accessor('nationalities', {
       header: 'Nat', enableSorting: false,

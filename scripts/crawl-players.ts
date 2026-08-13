@@ -12,6 +12,7 @@ import type { MflPlayer } from '../src/types/mfl';
 
 async function crawlPlayers() {
   const db = await getDb();
+  const crawlStartedAt = new Date();
   let beforePlayerId: number | undefined;
   let totalInserted = 0;
   let page = 0;
@@ -50,6 +51,8 @@ async function crawlPlayers() {
       physical: player.metadata.physical ?? 0,
       goalkeeping: player.metadata.goalkeeping ?? 0,
       isDevCenter: player.activeContract?.club?.type === 'DEVELOPMENT_CENTER',
+      isRetired: false,
+      lastSeenAt: new Date(),
     }));
 
     await db
@@ -76,6 +79,9 @@ async function crawlPlayers() {
           physical: sql`VALUES(${players.physical})`,
           goalkeeping: sql`VALUES(${players.goalkeeping})`,
           isDevCenter: sql`VALUES(${players.isDevCenter})`,
+          isRetired: false,
+          lastSeenAt: sql`NOW()`,
+          updatedAt: sql`NOW()`,
         },
       });
 
@@ -86,7 +92,14 @@ async function crawlPlayers() {
     await new Promise((r) => setTimeout(r, 500));
   }
 
-  console.log(`[Crawler] Done! Total players indexed: ${totalInserted}`);
+  // This runs only after every MFL page completed successfully. Rows not seen
+  // during this complete pass are retained for historical model training.
+  await db.update(players)
+    .set({ isRetired: true })
+    .where(sql`${players.lastSeenAt} < ${crawlStartedAt}`);
+
+  console.log(`[Crawler] Done! Total active players indexed: ${totalInserted}`);
+  console.log('[Crawler] Players missing from the complete MFL index were marked as retired.');
   process.exit(0);
 }
 

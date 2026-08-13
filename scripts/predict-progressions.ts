@@ -400,6 +400,7 @@ async function main() {
     db.select({
       id: players.id,
       age: players.age,
+      isRetired: players.isRetired,
       overall: players.overall,
       positions: players.positions,
       pace: players.pace,
@@ -509,6 +510,9 @@ async function main() {
   let written = 0;
   let withCurve = 0;
   for (const player of playerRows) {
+    // Retired careers remain in trainingSamples but never receive a live forecast.
+    if (player.isRetired) continue;
+
     const position = primaryPosition(player.positions);
     const weeklyMomentum = observationMomentum(observationsByPlayer.get(player.id) || [])
       ?? snapshotMomentum(snapshotsByPlayer.get(player.id) || [], position);

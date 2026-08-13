@@ -34,6 +34,8 @@ export const players = mysqlTable(
     physical: int('physical').default(0),
     goalkeeping: int('goalkeeping').default(0),
     isDevCenter: boolean('is_dev_center').default(false),
+    // Players absent from a fully completed MFL index remain available for training only.
+    isRetired: boolean('is_retired').notNull().default(false),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
   },
   (table) => ({
@@ -42,6 +44,7 @@ export const players = mysqlTable(
     revenueShareIdx: index('revenue_share_idx').on(table.revenueShare),
     listingPriceIdx: index('listing_price_idx').on(table.listingPrice),
     isDevCenterIdx: index('is_dev_center_idx').on(table.isDevCenter),
+    isRetiredIdx: index('is_retired_idx').on(table.isRetired),
   })
 );
 

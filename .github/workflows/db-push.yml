@@ -64,6 +64,40 @@ jobs:
               } else {
                 console.log('players.retirement_years already exists.');
               }
+
+              const [retiredColumns] = await connection.query(
+                `SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'players'
+                   AND column_name = 'is_retired'
+                 LIMIT 1`,
+              );
+
+              if (retiredColumns.length === 0) {
+                await connection.query(
+                  'ALTER TABLE \`players\` ADD COLUMN \`is_retired\` BOOLEAN NOT NULL DEFAULT FALSE AFTER \`is_dev_center\`',
+                );
+                console.log('Added players.is_retired.');
+              } else {
+                console.log('players.is_retired already exists.');
+              }
+
+              const [retiredIndexes] = await connection.query(
+                `SELECT 1
+                 FROM information_schema.statistics
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'players'
+                   AND index_name = 'is_retired_idx'
+                 LIMIT 1`,
+              );
+
+              if (retiredIndexes.length === 0) {
+                await connection.query(
+                  'CREATE INDEX \`is_retired_idx\` ON \`players\` (\`is_retired\`)',
+                );
+                console.log('Added players.is_retired index.');
+              }
             } finally {
               await connection.end();
             }

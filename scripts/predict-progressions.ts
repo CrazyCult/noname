@@ -31,7 +31,17 @@ const ATTRIBUTE_KEYS = [
   'goalkeeping',
 ] as const;
 const STATE_KEYS = ['age', 'overall', ...ATTRIBUTE_KEYS] as const;
-const MODEL_VERSION = 'knn-retired-active-career-v3';
+const MODEL_VERSION = 'knn-retired-official-pot-prior-v4';
+
+// Official MFL guide distribution for the OVR-to-POT gap of players minted
+// at age 24-25: 1-2=20%, 3-5=40%, 6-9=31%, 10-15=7%, 16+=2%.
+// Midpoints give an indicative mean gap of about 5.5 OVR. Only P(gap>=10)
+// is directly supported (9%); higher stored thresholds remain empirical.
+const OFFICIAL_GUIDE_AGE = 24.5;
+const OFFICIAL_MEAN_GAP = 5.5;
+const OFFICIAL_PROBABILITY_GAIN_10 = 9;
+const OFFICIAL_PRIOR_MAX_WEIGHT = 0.35;
+const OFFICIAL_PRIOR_FADE_YEARS = 6;
 const THRESHOLDS = [10, 15, 20, 25, 30] as const;
 const MIN_NEIGHBOURS = 20;
 const MAX_NEIGHBOURS = 200;
@@ -373,6 +383,47 @@ function probability(neighbours: Neighbour[], threshold: number): number {
   );
 }
 
+function officialPriorWeight(age: number): number {
+  const distance = Math.abs(age - OFFICIAL_GUIDE_AGE);
+  return OFFICIAL_PRIOR_MAX_WEIGHT * Math.max(0, 1 - distance / OFFICIAL_PRIOR_FADE_YEARS);
+}
+
+function calibrateWithOfficialGuide(
+  age: number,
+  empiricalGain: number,
+  empiricalProbabilities: number[]
+): { gain: number; probabilities: number[] } {
+  const priorWeight = officialPriorWeight(age);
+  if (priorWeight === 0) {
+    return { gain: empiricalGain, probabilities: empiricalProbabilities };
+  }
+
+  const gain = Math.max(
+    0,
+    Math.round(empiricalGain * (1 - priorWeight) + OFFICIAL_MEAN_GAP * priorWeight)
+  );
+
+  const empiricalGain10 = empiricalProbabilities[0];
+  const calibratedGain10 = Math.round(
+    empiricalGain10 * (1 - priorWeight) + OFFICIAL_PROBABILITY_GAIN_10 * priorWeight
+  );
+
+  // MFL does not publish exact +15/+20/+25/+30 probabilities. Preserve the
+  // empirical tail shape and rescale it by the calibrated P(+10).
+  const tailScale = empiricalGain10 > 0 ? calibratedGain10 / empiricalGain10 : 0;
+  const probabilities = empiricalProbabilities.map((value, index) => {
+    if (index === 0) return calibratedGain10;
+    return Math.min(calibratedGain10, Math.max(0, Math.round(value * tailScale)));
+  });
+
+  // Enforce a valid survival curve: P(+N) can never rise with N.
+  for (let index = 1; index < probabilities.length; index++) {
+    probabilities[index] = Math.min(probabilities[index], probabilities[index - 1]);
+  }
+
+  return { gain, probabilities };
+}
+
 function confidence(neighbours: Neighbour[], hasCurve: boolean): number {
   const sampleCoverage = Math.min(1, neighbours.length / 100);
   const meanDistance = weightedMean(neighbours, (neighbour) => neighbour.distance);
@@ -537,11 +588,20 @@ async function main() {
     const neighbours = selectNeighbours(profile, trainingSamples);
     if (neighbours.length < MIN_NEIGHBOURS) continue;
 
-    const predictedGain = Math.max(
+    const empiricalGain = Math.max(
       0,
       Math.round(weightedMean(neighbours, (neighbour) => neighbour.remainingGain))
     );
-    const probabilities = THRESHOLDS.map((threshold) => probability(neighbours, threshold));
+    const empiricalProbabilities = THRESHOLDS.map(
+      (threshold) => probability(neighbours, threshold)
+    );
+    const calibrated = calibrateWithOfficialGuide(
+      player.age,
+      empiricalGain,
+      empiricalProbabilities
+    );
+    const predictedGain = Math.min(99 - player.overall, calibrated.gain);
+    const probabilities = calibrated.probabilities;
     const value = {
       playerId: player.id,
       predictedGain,

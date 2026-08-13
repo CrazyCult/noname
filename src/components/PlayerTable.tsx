@@ -64,10 +64,10 @@ function PredictionBadge({ prediction }: { prediction?: PlayerPrediction }) {
     ? 'text-emerald-400'
     : prediction.confidence >= 50 ? 'text-amber-400' : 'text-zinc-400';
   const details = [
-    `OVR prévu : ${prediction.predictedOverall}`,
-    `Gain attendu : ${gainPrefix}${prediction.predictedGain}`,
+    `POT estimé : ${prediction.predictedOverall}`,
+    `Écart POT estimé : ${gainPrefix}${prediction.predictedGain}`,
     `Confiance : ${prediction.confidence}% (${prediction.sampleSize} joueurs comparables)`,
-    `Modèle : ${prediction.modelVersion} (carrières terminées à activité observée, âge, OVR, poste, attributs et courbe récente)`,
+    `Modèle : ${prediction.modelVersion} (carrières historiques similaires + calibration du guide officiel MFL à 24-25 ans)`,
     `P(+10) ${prediction.probabilityGain10}% · P(+15) ${prediction.probabilityGain15}%`,
     `P(+20) ${prediction.probabilityGain20}% · P(+25) ${prediction.probabilityGain25}% · P(+30) ${prediction.probabilityGain30}%`,
   ].join('\n');
@@ -383,7 +383,7 @@ export default function PlayerTable({
       },
     }),
     columnHelper.accessor('prediction', {
-      header: 'Prédiction',
+      header: 'POT estimé',
       enableSorting: false,
       cell: (info) => <PredictionBadge prediction={info.getValue()} />,
     }),

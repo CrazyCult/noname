@@ -10,20 +10,24 @@ on:
       max_players:
         description: Players to process in this run (maximum 15000)
         required: false
-        default: '4000'
+        default: '1000'
       delay_ms:
         description: Minimum interval between MFL requests in milliseconds (minimum 700)
         required: false
-        default: '700'
+        default: '250'
+      workers:
+        description: Parallel workers sharing one adaptive global limiter (maximum 8)
+        required: false
+        default: '4'
       max_runtime_minutes:
         description: Stop cleanly before the GitHub timeout and queue the next batch
         required: false
-        default: '270'
+        default: '60'
       chain:
         description: Automatically queue the next batch after a successful run
         required: false
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: history-backfill
@@ -56,6 +60,7 @@ jobs:
           HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}
           HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
           HISTORY_DELAY_MS: ${{ inputs.delay_ms }}
+          HISTORY_WORKERS: ${{ inputs.workers }}
           HISTORY_MAX_RUNTIME_MINUTES: ${{ inputs.max_runtime_minutes }}
 
       - name: Refresh predictions after the full backfill
@@ -77,5 +82,6 @@ jobs:
             -f start_after_id="${{ steps.history.outputs.next_start_after_id }}" \
             -f max_players="${{ inputs.max_players }}" \
             -f delay_ms="${{ inputs.delay_ms }}" \
+            -f workers="${{ inputs.workers }}" \
             -f max_runtime_minutes="${{ inputs.max_runtime_minutes }}" \
             -f chain=true

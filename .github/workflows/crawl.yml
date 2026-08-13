@@ -2,10 +2,10 @@ name: Daily Crawl
 
 on:
   schedule:
-    # 10h10 Paris (09:10 UTC hiver / 11h10 en été)
-    - cron: '10 9 * * *'
-    # 22h50 Paris (21:50 UTC hiver / 23h50 en été)
-    - cron: '50 21 * * *'
+    - cron: '30 10 * * *'
+      timezone: 'Europe/Paris'
+    - cron: '10 23 * * *'
+      timezone: 'Europe/Paris'
   workflow_dispatch:
 
 concurrency:

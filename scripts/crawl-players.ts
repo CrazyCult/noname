@@ -52,6 +52,7 @@ async function crawlPlayers() {
       goalkeeping: player.metadata.goalkeeping ?? 0,
       isDevCenter: player.activeContract?.club?.type === 'DEVELOPMENT_CENTER',
       isRetired: false,
+      lastSeenAt: new Date(),
     }));
 
     await db
@@ -79,7 +80,7 @@ async function crawlPlayers() {
           goalkeeping: sql`VALUES(${players.goalkeeping})`,
           isDevCenter: sql`VALUES(${players.isDevCenter})`,
           isRetired: false,
-          // Force a heartbeat even when all MFL values are unchanged.
+          lastSeenAt: sql`NOW()`,
           updatedAt: sql`NOW()`,
         },
       });
@@ -95,7 +96,7 @@ async function crawlPlayers() {
   // during this complete pass are retained for historical model training.
   await db.update(players)
     .set({ isRetired: true })
-    .where(sql`${players.updatedAt} < ${crawlStartedAt}`);
+    .where(sql`${players.lastSeenAt} < ${crawlStartedAt}`);
 
   console.log(`[Crawler] Done! Total active players indexed: ${totalInserted}`);
   console.log('[Crawler] Players missing from the complete MFL index were marked as retired.');

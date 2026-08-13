@@ -9,6 +9,7 @@
 import 'dotenv/config';
 import { getDb } from '../db';
 import { players, playerSnapshots } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 async function crawlSnapshots() {
   const db = await getDb();
@@ -16,7 +17,8 @@ async function crawlSnapshots() {
   console.log('[Snapshots] Starting snapshot crawl...');
   console.log(`[Snapshots] Timestamp: ${new Date().toISOString()}`);
 
-  const allPlayers = await db.select().from(players);
+  const allPlayers = await db.select().from(players)
+    .where(eq(players.isRetired, false));
   const now = new Date();
   const BATCH_SIZE = 1000;
   let inserted = 0;

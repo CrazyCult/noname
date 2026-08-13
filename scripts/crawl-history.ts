@@ -172,7 +172,11 @@ async function main() {
   console.log(`[History] Next run: start_after_id=${lastCompletedId}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main()
+  // mysql2 keeps its pool handles open after the final write. Explicitly end
+  // this one-shot job so GitHub can execute the next chained batch.
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

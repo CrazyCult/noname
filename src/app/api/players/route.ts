@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
           goalkeeping: players.goalkeeping,
           isDevCenter: players.isDevCenter,
           isRetired: players.isRetired,
+          lastSeenAt: players.lastSeenAt,
           updatedAt: players.updatedAt,
           progOverall: progressions.overall,
           progPace: progressions.pace,
@@ -156,6 +157,7 @@ export async function GET(request: NextRequest) {
           goalkeeping: row.goalkeeping,
           isDevCenter: row.isDevCenter,
           isRetired: row.isRetired,
+          lastSeenAt: row.lastSeenAt,
           updatedAt: row.updatedAt,
         };
       });

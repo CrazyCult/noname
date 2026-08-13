@@ -2,8 +2,8 @@ name: Weekly Crawl Players
 
 on:
   schedule:
-    # Jeudi 3h00 Paris (02:00 UTC hiver / 01:00 UTC été)
-    - cron: '0 2 * * 4'
+    - cron: '0 3 * * 4'
+      timezone: 'Europe/Paris'
   workflow_dispatch:
 
 jobs:

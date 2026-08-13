@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { getDb } from '../src/db';
 import { players, progressions, progressionObservations, crawlLogs } from '../src/db/schema';
 import { fetchProgressions } from '../src/lib/mfl-api';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and, isNull } from 'drizzle-orm';
 import type { ProgressionInterval } from '../src/types/mfl';
 
 const BATCH_SIZE = 200;
@@ -138,9 +138,18 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
   // touched by this crawl run. All processed rows have updatedAt=NOW() so
   // anything older than crawlStart is a true orphan.
   const crawlStart = new Date(startTime);
-  const purgeResult = await db.execute(
-    sql`DELETE FROM progressions WHERE \`interval\` = ${interval} AND updated_at < ${crawlStart}`
-  );
+  const purgeResult = interval === '24H'
+    ? await db.execute(sql`
+        DELETE p FROM progressions p
+        INNER JOIN players pl ON pl.id = p.player_id
+        WHERE p.\`interval\` = ${interval}
+          AND p.updated_at < ${crawlStart}
+          AND pl.is_retired = false
+          AND pl.retirement_years IS NULL
+      `)
+    : await db.execute(
+        sql`DELETE FROM progressions WHERE \`interval\` = ${interval} AND updated_at < ${crawlStart}`
+      );
   const purged = (purgeResult as any)[0]?.affectedRows ?? 0;
 
   // DB truth after purge
@@ -175,9 +184,20 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
 async function main() {
   const arg = process.argv[2];
   const db = await getDb();
-  const allPlayers = await db.select({ id: players.id }).from(players);
-  const playerIds = allPlayers.map((p) => p.id);
-  console.log(`Loaded ${playerIds.length} players from database`);
+  const [allPlayers, fastPlayers] = await Promise.all([
+    db.select({ id: players.id }).from(players),
+    db.select({ id: players.id })
+      .from(players)
+      .where(and(
+        eq(players.isRetired, false),
+        isNull(players.retirementYears),
+      )),
+  ]);
+  const allPlayerIds = allPlayers.map((player) => player.id);
+  const fastPlayerIds = fastPlayers.map((player) => player.id);
+  console.log(
+    `Loaded ${allPlayerIds.length} total players; ${fastPlayerIds.length} eligible for fast 24H crawl`
+  );
 
   let intervals: ProgressionInterval[];
   if (arg === '--all') intervals = [...VALID_INTERVALS];
@@ -189,6 +209,9 @@ async function main() {
 
   const globalStart = Date.now();
   for (const interval of intervals) {
+    // 24H prioritises actionable prospects. Longer historical intervals keep
+    // retirees and pre-retirees so their careers remain useful to the model.
+    const playerIds = interval === '24H' ? fastPlayerIds : allPlayerIds;
     await crawlInterval(playerIds, interval);
   }
 

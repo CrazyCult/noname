@@ -14,7 +14,7 @@ on:
       delay_ms:
         description: Minimum interval between MFL requests in milliseconds (minimum 700)
         required: false
-        default: '250'
+        default: '750'
       workers:
         description: Parallel workers sharing one adaptive global limiter (maximum 8)
         required: false

@@ -10,7 +10,7 @@ const MIN_DELAY_MS = 200;
 const DEFAULT_WORKERS = 4;
 const MAX_PLAYERS_PER_RUN = 15_000;
 const MAX_RUNTIME_MINUTES_LIMIT = 300;
-const requestedDelayMs = positiveIntegerEnv('HISTORY_DELAY_MS', 250);
+const requestedDelayMs = positiveIntegerEnv('HISTORY_DELAY_MS', 750);
 const requestedWorkers = positiveIntegerEnv('HISTORY_WORKERS', DEFAULT_WORKERS);
 const requestedMaxPlayers = positiveIntegerEnv('HISTORY_MAX_PLAYERS', 4_000);
 const requestedMaxRuntimeMinutes = positiveIntegerEnv('HISTORY_MAX_RUNTIME_MINUTES', 270);
@@ -182,14 +182,15 @@ async function main() {
             fetchedAt: new Date(),
           }))).onDuplicateKeyUpdate({
             set: {
-              values: sql`VALUES(${playerHistoryEvents.values})`,
-              fetchedAt: sql`NOW()`,
+              values: sql.raw('VALUES(`values`)'),
+              fetchedAt: sql.raw('NOW()'),
             },
           });
         }
         return { id, succeeded: true };
       } catch (error) {
         console.error(`[History] player ${id}:`, error instanceof Error ? error.message : error);
+        if (error instanceof Error && error.cause) console.error('[History] DB/API cause:', error.cause);
         return { id, succeeded: false };
       }
     }));

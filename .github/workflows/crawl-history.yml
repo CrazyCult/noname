@@ -10,11 +10,15 @@ on:
       max_players:
         description: Players to process in this run (maximum 15000)
         required: false
-        default: '15000'
+        default: '4000'
       delay_ms:
         description: Minimum interval between MFL requests in milliseconds (minimum 700)
         required: false
         default: '700'
+      max_runtime_minutes:
+        description: Stop cleanly before the GitHub timeout and queue the next batch
+        required: false
+        default: '270'
       chain:
         description: Automatically queue the next batch after a successful run
         required: false
@@ -31,11 +35,11 @@ jobs:
       actions: write
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 300
     environment: Crawling
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -52,6 +56,7 @@ jobs:
           HISTORY_START_AFTER_ID: ${{ inputs.start_after_id }}
           HISTORY_MAX_PLAYERS: ${{ inputs.max_players }}
           HISTORY_DELAY_MS: ${{ inputs.delay_ms }}
+          HISTORY_MAX_RUNTIME_MINUTES: ${{ inputs.max_runtime_minutes }}
 
       - name: Refresh predictions after the full backfill
         if: success() && steps.history.outputs.has_more == 'false'
@@ -68,8 +73,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run crawl-history.yml --ref main \
+          gh workflow run crawl-history.yml --ref "${{ github.ref_name }}" \
             -f start_after_id="${{ steps.history.outputs.next_start_after_id }}" \
             -f max_players="${{ inputs.max_players }}" \
             -f delay_ms="${{ inputs.delay_ms }}" \
+            -f max_runtime_minutes="${{ inputs.max_runtime_minutes }}" \
             -f chain=true

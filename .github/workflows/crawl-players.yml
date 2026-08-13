@@ -6,13 +6,13 @@ on:
 jobs:
   crawl-players:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 300
     environment: Crawling
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm

@@ -2,56 +2,32 @@ name: Daily Crawl
 
 on:
   schedule:
-    # 10h10 Paris (09:10 UTC hiver / 08:10 UTC été)
-    - cron: '10 9 * * *'
-    # 22h50 Paris (21:50 UTC hiver / 20:50 UTC été)
-    - cron: '50 21 * * *'
+    - cron: '30 10 * * *'
+      timezone: 'Europe/Paris'
+    - cron: '10 23 * * *'
+      timezone: 'Europe/Paris'
   workflow_dispatch:
 
+concurrency:
+  group: daily-progression-crawl
+  cancel-in-progress: false
+
 jobs:
-  crawl:
+  crawl-24h:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     environment: Crawling
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
-
       - run: npm ci
 
-      - name: Test DB connection
-        run: |
-          node -e "
-          const mysql = require('mysql2/promise');
-          async function test() {
-            const conn = await mysql.createConnection({
-              host: process.env.DB_HOST,
-              user: process.env.DB_USER,
-              password: process.env.DB_PASSWORD,
-              database: process.env.DB_NAME,
-              port: Number(process.env.DB_PORT),
-              ssl: { rejectUnauthorized: true }
-            });
-            const [rows] = await conn.execute('SELECT 1 as ok');
-            console.log('✅ DB connected:', rows[0]);
-            await conn.end();
-          }
-          test().catch(e => { console.error('❌ DB error:', e.message); process.exit(1); });
-          "
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-
-      - name: Crawl progressions (CURRENT_SEASON, 24H, WEEK)
-        run: npm run crawl:progressions
+      - name: Crawl progressions 24H
+        run: npm run crawl:progressions 24H
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
@@ -59,6 +35,21 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_PORT: ${{ secrets.DB_PORT }}
           MFL_API_URL: ${{ secrets.MFL_API_URL }}
+
+  predictions:
+    needs: crawl-24h
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: Crawling
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
 
       - name: Refresh predictions
         run: npm run predict:progressions

@@ -8,21 +8,22 @@ import { gt, sql } from 'drizzle-orm';
 const BASE_URL = process.env.MFL_API_URL || 'https://z519wdyajg.execute-api.us-east-1.amazonaws.com/prod';
 const MIN_DELAY_MS = 700;
 const MAX_PLAYERS_PER_RUN = 15_000;
+const MAX_RUNTIME_MINUTES_LIMIT = 300;
 const requestedDelayMs = positiveIntegerEnv('HISTORY_DELAY_MS', MIN_DELAY_MS);
-const requestedMaxPlayers = positiveIntegerEnv('HISTORY_MAX_PLAYERS', MAX_PLAYERS_PER_RUN);
+const requestedMaxPlayers = positiveIntegerEnv('HISTORY_MAX_PLAYERS', 4_000);
+const requestedMaxRuntimeMinutes = positiveIntegerEnv('HISTORY_MAX_RUNTIME_MINUTES', 270);
 const DELAY_MS = Math.max(MIN_DELAY_MS, requestedDelayMs);
 const MAX_PLAYERS = Math.min(MAX_PLAYERS_PER_RUN, requestedMaxPlayers);
+const MAX_RUNTIME_MS = Math.min(MAX_RUNTIME_MINUTES_LIMIT, requestedMaxRuntimeMinutes) * 60_000;
 const START_AFTER_ID = nonNegativeIntegerEnv('HISTORY_START_AFTER_ID', 0);
 const RATE_LIMIT_COOLDOWN_MS = positiveIntegerEnv('HISTORY_RATE_LIMIT_COOLDOWN_MS', 90_000);
 const MAX_THROTTLE_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 type HistoryEvent = { date: number; values: Record<string, number> };
 
 class MflThrottleError extends Error {
-  constructor(
-    readonly playerId: number,
-    readonly status: number,
-  ) {
+  constructor(readonly playerId: number, readonly status: number) {
     super(`MFL kept returning HTTP ${status} for player ${playerId}`);
     this.name = 'MflThrottleError';
   }
@@ -47,13 +48,12 @@ function writeWorkflowOutputs(nextStartAfterId: number, hasMore: boolean) {
   if (!outputPath) return;
   appendFileSync(outputPath, `next_start_after_id=${nextStartAfterId}\nhas_more=${hasMore}\n`);
 }
+
 function retryAfterMs(response: Response) {
   const value = response.headers.get('retry-after');
   if (!value) return null;
-
   const seconds = Number(value);
   if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? null : Math.max(0, timestamp - Date.now());
 }
@@ -65,8 +65,9 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
       response = await fetch(`${BASE_URL}/players/${playerId}/experiences/history`, {
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'mfl-scout-history-backfill/1.0',
+          'User-Agent': 'mfl-scout-history-backfill/1.1',
         },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       if (attempt === MAX_THROTTLE_ATTEMPTS) throw error;
@@ -80,28 +81,21 @@ async function fetchHistory(playerId: number): Promise<HistoryEvent[]> {
 
     const isThrottle = response.status === 403 || response.status === 429;
     const isServerError = response.status >= 500;
-    if (!isThrottle && !isServerError) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (!isThrottle && !isServerError) throw new Error(`HTTP ${response.status}`);
 
     if (isThrottle) {
-      if (attempt === MAX_THROTTLE_ATTEMPTS) {
-        throw new MflThrottleError(playerId, response.status);
-      }
+      if (attempt === MAX_THROTTLE_ATTEMPTS) throw new MflThrottleError(playerId, response.status);
       const waitMs = Math.max(retryAfterMs(response) ?? 0, RATE_LIMIT_COOLDOWN_MS);
       console.warn(`[History] player ${playerId}: HTTP ${response.status}; waiting ${Math.ceil(waitMs / 1000)}s before retrying`);
       await sleep(waitMs);
       continue;
     }
 
-    if (attempt === MAX_THROTTLE_ATTEMPTS) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (attempt === MAX_THROTTLE_ATTEMPTS) throw new Error(`HTTP ${response.status}`);
     const waitMs = 2 ** attempt * 1000;
     console.warn(`[History] player ${playerId}: HTTP ${response.status}; retrying in ${waitMs / 1000}s`);
     await sleep(waitMs);
   }
-
   throw new Error(`No response for player ${playerId}`);
 }
 
@@ -111,6 +105,9 @@ async function main() {
   }
   if (requestedMaxPlayers > MAX_PLAYERS_PER_RUN) {
     console.warn(`[History] HISTORY_MAX_PLAYERS was capped at ${MAX_PLAYERS_PER_RUN}`);
+  }
+  if (requestedMaxRuntimeMinutes > MAX_RUNTIME_MINUTES_LIMIT) {
+    console.warn(`[History] HISTORY_MAX_RUNTIME_MINUTES was capped at ${MAX_RUNTIME_MINUTES_LIMIT}`);
   }
 
   const db = await getDb();
@@ -125,13 +122,22 @@ async function main() {
     return;
   }
 
-  console.log(`[History] starting ${ids.length} players after ID ${START_AFTER_ID} at one request every ${DELAY_MS}ms or slower`);
+  console.log(`[History] starting up to ${ids.length} players after ID ${START_AFTER_ID}; time budget ${MAX_RUNTIME_MS / 60_000} minutes`);
 
+  const startedAt = Date.now();
   let succeeded = 0;
   let failed = 0;
+  let processed = 0;
   let lastCompletedId = START_AFTER_ID;
+  let stoppedForTimeBudget = false;
 
-  for (const [index, { id }] of ids.entries()) {
+  for (const { id } of ids) {
+    if (Date.now() - startedAt >= MAX_RUNTIME_MS) {
+      stoppedForTimeBudget = true;
+      console.log(`[History] time budget reached; stopping cleanly after player ${lastCompletedId}`);
+      break;
+    }
+
     try {
       const history = await fetchHistory(id);
       if (history.length) {
@@ -160,21 +166,20 @@ async function main() {
       console.error(`[History] player ${id}:`, error instanceof Error ? error.message : error);
     }
 
-    if ((index + 1) % 100 === 0) {
-      console.log(`[History] ${index + 1}/${ids.length}, failed=${failed}, resume_after=${lastCompletedId}`);
+    processed++;
+    if (processed % 100 === 0) {
+      console.log(`[History] ${processed}/${ids.length}, failed=${failed}, resume_after=${lastCompletedId}`);
     }
     await sleep(DELAY_MS);
   }
 
-  const hasMore = ids.length === MAX_PLAYERS;
+  const hasMore = stoppedForTimeBudget || ids.length === MAX_PLAYERS;
   writeWorkflowOutputs(lastCompletedId, hasMore);
-  console.log(`[History] complete: ${succeeded} succeeded, ${failed} failed`);
-  console.log(`[History] Next run: start_after_id=${lastCompletedId}`);
+  console.log(`[History] batch complete: ${succeeded} succeeded, ${failed} failed, ${processed} processed`);
+  console.log(`[History] Next run: start_after_id=${lastCompletedId}, has_more=${hasMore}`);
 }
 
 main()
-  // mysql2 keeps its pool handles open after the final write. Explicitly end
-  // this one-shot job so GitHub can execute the next chained batch.
   .then(() => process.exit(0))
   .catch((error) => {
     console.error(error);

@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { getDb } from '../src/db';
 import { players, progressions, progressionObservations, crawlLogs } from '../src/db/schema';
 import { fetchProgressions } from '../src/lib/mfl-api';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and, isNull } from 'drizzle-orm';
 import type { ProgressionInterval } from '../src/types/mfl';
 
 const BATCH_SIZE = 200;
@@ -175,9 +175,17 @@ async function crawlInterval(playerIds: number[], interval: ProgressionInterval)
 async function main() {
   const arg = process.argv[2];
   const db = await getDb();
-  const allPlayers = await db.select({ id: players.id }).from(players);
-  const playerIds = allPlayers.map((p) => p.id);
-  console.log(`Loaded ${playerIds.length} players from database`);
+  // Live progression calls are only useful for active players who have not
+  // entered MFL's official final-three-season retirement window. Historical
+  // rows remain untouched and continue to train the potential model.
+  const eligiblePlayers = await db.select({ id: players.id })
+    .from(players)
+    .where(and(
+      eq(players.isRetired, false),
+      isNull(players.retirementYears),
+    ));
+  const playerIds = eligiblePlayers.map((player) => player.id);
+  console.log(`Loaded ${playerIds.length} active, non-retiring players from database`);
 
   let intervals: ProgressionInterval[];
   if (arg === '--all') intervals = [...VALID_INTERVALS];

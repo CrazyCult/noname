@@ -1,0 +1,36 @@
+name: Refresh Predictions
+
+on:
+  schedule:
+    # Runs after the 23:10 Paris 24H crawl, with room for GitHub queue delays.
+    - cron: '30 1 * * *'
+      timezone: 'Europe/Paris'
+  workflow_dispatch:
+
+concurrency:
+  group: prediction-refresh
+  cancel-in-progress: false
+
+jobs:
+  predictions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: Crawling
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Refresh predictions
+        run: npm run predict:progressions
+        env:
+          NODE_OPTIONS: --max-old-space-size=5120
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}

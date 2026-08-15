@@ -1,12 +1,20 @@
 name: Crawl Progressions MONTH
 
 on:
+  schedule:
+    - cron: '15 16 * * *'
+      timezone: 'Europe/Paris'
   workflow_dispatch:
+
+# Shared queue: this crawl waits rather than calling MFL alongside another one.
+concurrency:
+  group: progression-crawl
+  cancel-in-progress: false
 
 jobs:
   crawl-progressions-month:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     environment: Crawling
 
     steps:

@@ -19,7 +19,7 @@ import {
   playerSnapshots,
   progressionObservations,
 } from '../src/db/schema';
-import { asc, gte, ne, sql } from 'drizzle-orm';
+import { and, asc, gte, inArray, ne, sql } from 'drizzle-orm';
 
 const ATTRIBUTE_KEYS = [
   'pace',
@@ -48,6 +48,8 @@ const MAX_NEIGHBOURS = 200;
 const MIN_CURVE_DAYS = 7;
 const TARGET_CURVE_DAYS = 28;
 const MAX_CURVE_DAYS = 56;
+const TRAINING_BATCH_SIZE = 1_000;
+const PREDICTION_BATCH_SIZE = 500;
 
 // MFL seasons last six weeks. A player can retire from age 32 onwards, but the
 // guide says most retire between 34 and 36. This intentionally conservative
@@ -338,30 +340,63 @@ function distance(left: Profile, right: Profile): number {
     Math.abs(left.age - right.age) * 3 +
     Math.abs(left.overall - right.overall) * 1.75 +
     statDistance(left.stats, right.stats) * 0.6 +
-    positionDistance(left.position, right.position) +
-    curveDistance(left.weeklyMomentum, right.weeklyMomentum)
-  );
+    positionDistance(left.position, rigtype TrainingIndex = {
+  all: TrainingSample[];
+  byPosition: Map<string, TrainingSample[]>;
+  playerCountsByPosition: Map<string, number>;
+};
+
+function buildTrainingIndex(samples: TrainingSample[]): TrainingIndex {
+  const byPosition = new Map<string, TrainingSample[]>();
+  const playerIdsByPosition = new Map<string, Set<number>>();
+
+  for (const sample of samples) {
+    if (!sample.position) continue;
+    const position = sample.position;
+    const positionSamples = byPosition.get(position) || [];
+    positionSamples.push(sample);
+    byPosition.set(position, positionSamples);
+
+    const playerIds = playerIdsByPosition.get(position) || new Set<number>();
+    playerIds.add(sample.playerId);
+    playerIdsByPosition.set(position, playerIds);
+  }
+
+  return {
+    all: samples,
+    byPosition,
+    playerCountsByPosition: new Map(
+      [...playerIdsByPosition.entries()].map(([position, playerIds]) => [position, playerIds.size])
+    ),
+  };
 }
 
-function selectNeighbours(profile: Profile, samples: TrainingSample[]): Neighbour[] {
-  const exactPosition = profile.position
-    ? samples.filter((sample) => sample.position === profile.position)
-    : [];
-
-  // Primary position defines OVR and XP attribute weighting. Prefer it when
-  // enough complete careers exist; otherwise fall back to the full sample.
-  const pool = new Set(exactPosition.map((sample) => sample.playerId)).size >= MIN_NEIGHBOURS
+function selectNeighbours(profile: Profile, index: TrainingIndex): Neighbour[] {
+  const exactPosition = profile.position ? index.byPosition.get(profile.position) : undefined;
+  const exactPlayerCount = profile.position
+    ? index.playerCountsByPosition.get(profile.position) ?? 0
+    : 0;
+  const pool = exactPosition && exactPlayerCount >= MIN_NEIGHBOURS
     ? exactPosition
-    : samples;
+    : index.all;
 
-  const seenPlayers = new Set<number>();
-  const neighbours: Neighbour[] = [];
-  for (const candidate of pool
-    .map((sample) => ({ ...sample, distance: distance(profile, sample) }))
-    .sort((a, b) => a.distance - b.distance)) {
-    if (seenPlayers.has(candidate.playerId)) continue;
-    seenPlayers.add(candidate.playerId);
-    neighbours.push(candidate);
+  // Several states of the same retired player may be in the training set.
+  // Keep only their closest state before sorting, avoiding a large temporary
+  // array for every live player prediction.
+  const closestByPlayer = new Map<number, Neighbour>();
+  for (const sample of pool) {
+    const candidate: Neighbour = { ...sample, distance: distance(profile, sample) };
+    const previous = closestByPlayer.get(candidate.playerId);
+    if (!previous || candidate.distance < previous.distance) {
+      closestByPlayer.set(candidate.playerId, candidate);
+    }
+  }
+
+  return [...closestByPlayer.values()]
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, MAX_NEIGHBOURS);
+}
+e);
     if (neighbours.length === MAX_NEIGHBOURS) break;
   }
   return neighbours;
@@ -441,111 +476,92 @@ function confidence(neighbours: Neighbour[], hasCurve: boolean): number {
 
 async function main() {
   const db = await getDb();
-  const [historyRows, playerRows, snapshotRows, observationRows] = await Promise.all([
-    db.select({
-      playerId: playerHistoryEvents.playerId,
-      eventDate: playerHistoryEvents.eventDate,
-      values: playerHistoryEvents.values,
-    }).from(playerHistoryEvents)
-      .orderBy(asc(playerHistoryEvents.playerId), asc(playerHistoryEvents.eventDate)),
-    db.select({
-      id: players.id,
-      age: players.age,
-      isRetired: players.isRetired,
-      overall: players.overall,
-      positions: players.positions,
-      pace: players.pace,
-      shooting: players.shooting,
-      passing: players.passing,
-      dribbling: players.dribbling,
-      defense: players.defense,
-      physical: players.physical,
-      goalkeeping: players.goalkeeping,
-    }).from(players),
-    db.select({
-      playerId: playerSnapshots.playerId,
-      createdAt: playerSnapshots.createdAt,
-      overall: playerSnapshots.overall,
-      pace: playerSnapshots.pace,
-      shooting: playerSnapshots.shooting,
-      passing: playerSnapshots.passing,
-      dribbling: playerSnapshots.dribbling,
-      defense: playerSnapshots.defense,
-      physical: playerSnapshots.physical,
-    }).from(playerSnapshots)
-      .where(gte(playerSnapshots.createdAt, new Date(Date.now() - MAX_CURVE_DAYS * 86_400_000)))
-      .orderBy(asc(playerSnapshots.playerId), asc(playerSnapshots.createdAt)),
-    db.select({
-      playerId: progressionObservations.playerId,
-      interval: progressionObservations.interval,
-      overall: progressionObservations.overall,
-      pace: progressionObservations.pace,
-      shooting: progressionObservations.shooting,
-      passing: progressionObservations.passing,
-      dribbling: progressionObservations.dribbling,
-      defense: progressionObservations.defense,
-      physical: progressionObservations.physical,
-      observedAt: progressionObservations.observedAt,
-    }).from(progressionObservations)
-      .where(gte(progressionObservations.observedAt, new Date(Date.now() - MAX_CURVE_DAYS * 86_400_000)))
-      .orderBy(asc(progressionObservations.playerId), asc(progressionObservations.observedAt)),
-  ]);
+  const playerRows = await db.select({
+    id: players.id,
+    age: players.age,
+    isRetired: players.isRetired,
+    overall: players.overall,
+    positions: players.positions,
+    pace: players.pace,
+    shooting: players.shooting,
+    passing: players.passing,
+    dribbling: players.dribbling,
+    defense: players.defense,
+    physical: players.physical,
+    goalkeeping: players.goalkeeping,
+  }).from(players);
 
   const playersById = new Map(playerRows.map((player) => [player.id, player]));
-  const pointsByPlayer = new Map<number, HistoryPoint[]>();
-  const states = new Map<number, State>();
-  const starts = new Map<number, { profile: Profile; date: Date }>();
 
-  for (const row of historyRows) {
-    const state = { ...(states.get(row.playerId) || {}) };
-    copyKnownValues(state, row.values);
-    states.set(row.playerId, state);
+  // History is the largest table. Read only plausible completed-career
+  // candidates and discard each batch as soon as its training states are built.
+  // This keeps the predictor below the hosted runner's memory limit.
+  const { trainingSamples, retiredCareerIds } = await (async () => {
+    const samples: TrainingSample[] = [];
+    const careerIds = new Set<number>();
+    const candidateIds = playerRows
+      .filter((player) => player.age >= RETIRED_AGE_FLOOR)
+      .map((player) => player.id);
 
-    const date = new Date(row.eventDate);
-    const points = pointsByPlayer.get(row.playerId) || [];
-    points.push({ date, state: { ...state } });
-    pointsByPlayer.set(row.playerId, points);
+    for (let offset = 0; offset < candidateIds.length; offset += TRAINING_BATCH_SIZE) {
+      const batchIds = candidateIds.slice(offset, offset + TRAINING_BATCH_SIZE);
+      const historyRows = await db.select({
+        playerId: playerHistoryEvents.playerId,
+        eventDate: playerHistoryEvents.eventDate,
+        values: playerHistoryEvents.values,
+      }).from(playerHistoryEvents)
+        .where(inArray(playerHistoryEvents.playerId, batchIds))
+        .orderBy(asc(playerHistoryEvents.playerId), asc(playerHistoryEvents.eventDate));
 
-    if (!starts.has(row.playerId)) {
-      const position = primaryPosition(playersById.get(row.playerId)?.positions ?? null);
-      const start = profileFromState(state, position);
-      if (start) starts.set(row.playerId, { profile: start, date });
+      const pointsByPlayer = new Map<number, HistoryPoint[]>();
+      const states = new Map<number, State>();
+      const starts = new Map<number, { profile: Profile; date: Date }>();
+
+      for (const row of historyRows) {
+        const state = { ...(states.get(row.playerId) || {}) };
+        copyKnownValues(state, row.values);
+        states.set(row.playerId, state);
+
+        const date = new Date(row.eventDate);
+        const points = pointsByPlayer.get(row.playerId) || [];
+        points.push({ date, state: { ...state } });
+        pointsByPlayer.set(row.playerId, points);
+
+        if (!starts.has(row.playerId)) {
+          const position = primaryPosition(playersById.get(row.playerId)?.positions ?? null);
+          const start = profileFromState(state, position);
+          if (start) starts.set(row.playerId, { profile: start, date });
+        }
+      }
+
+      for (const [playerId, start] of starts) {
+        const endState = states.get(playerId);
+        const end = endState ? profileFromState(endState, start.profile.position) : null;
+        if (!end) continue;
+
+        const playerSamples = buildTrainingSamples(
+          playerId,
+          pointsByPlayer.get(playerId) || [],
+          start.profile,
+          start.date,
+          end
+        );
+        if (playerSamples.length) {
+          careerIds.add(playerId);
+          samples.push(...playerSamples);
+        }
+      }
+
+      if ((offset / TRAINING_BATCH_SIZE + 1) % 25 === 0 || offset + batchIds.length === candidateIds.length) {
+        console.log(
+          '[Predictor] Training history ' + Math.min(offset + batchIds.length, candidateIds.length) +
+          '/' + candidateIds.length
+        );
+      }
     }
-  }
 
-  const trainingSamples: TrainingSample[] = [];
-  const retiredCareerIds = new Set<number>();
-  for (const [playerId, start] of starts) {
-    const endState = states.get(playerId);
-    const end = endState ? profileFromState(endState, start.profile.position) : null;
-    if (!end) continue;
-
-    const samples = buildTrainingSamples(
-      playerId,
-      pointsByPlayer.get(playerId) || [],
-      start.profile,
-      start.date,
-      end
-    );
-    if (samples.length) {
-      retiredCareerIds.add(playerId);
-      trainingSamples.push(...samples);
-    }
-  }
-
-  const snapshotsByPlayer = new Map<number, Array<(typeof snapshotRows)[number]>>();
-  for (const snapshot of snapshotRows) {
-    const list = snapshotsByPlayer.get(snapshot.playerId) || [];
-    list.push(snapshot);
-    snapshotsByPlayer.set(snapshot.playerId, list);
-  }
-
-  const observationsByPlayer = new Map<number, Array<(typeof observationRows)[number]>>();
-  for (const observation of observationRows) {
-    const list = observationsByPlayer.get(observation.playerId) || [];
-    list.push(observation);
-    observationsByPlayer.set(observation.playerId, list);
-  }
+    return { trainingSamples: samples, retiredCareerIds: careerIds };
+  })();
 
   if (retiredCareerIds.size < MIN_NEIGHBOURS) {
     throw new Error(
@@ -554,85 +570,154 @@ async function main() {
     );
   }
 
-  // Never present an old model as a current v3 prediction.
+  const trainingIndex = buildTrainingIndex(trainingSamples);
+
+  // Never present an old model as a current v4 prediction.
   await db.delete(playerPredictions)
     .where(ne(playerPredictions.modelVersion, MODEL_VERSION));
 
+  const activePlayers = playerRows.filter((player) => !player.isRetired);
   let written = 0;
   let withCurve = 0;
-  for (const player of playerRows) {
-    // Retired careers remain in trainingSamples but never receive a live forecast.
-    if (player.isRetired) continue;
+  const recentSince = new Date(Date.now() - MAX_CURVE_DAYS * 86_400_000);
 
-    const position = primaryPosition(player.positions);
-    const weeklyMomentum = observationMomentum(observationsByPlayer.get(player.id) || [])
-      ?? snapshotMomentum(snapshotsByPlayer.get(player.id) || [], position);
-    if (weeklyMomentum !== undefined) withCurve++;
+  // Fetch curve inputs and write predictions in bounded batches. Loading all
+  // observations for all players was the source of the 4 GB heap failure.
+  for (let offset = 0; offset < activePlayers.length; offset += PREDICTION_BATCH_SIZE) {
+    const playerBatch = activePlayers.slice(offset, offset + PREDICTION_BATCH_SIZE);
+    const playerIds = playerBatch.map((player) => player.id);
+    const [snapshotRows, observationRows] = await Promise.all([
+      db.select({
+        playerId: playerSnapshots.playerId,
+        createdAt: playerSnapshots.createdAt,
+        overall: playerSnapshots.overall,
+        pace: playerSnapshots.pace,
+        shooting: playerSnapshots.shooting,
+        passing: playerSnapshots.passing,
+        dribbling: playerSnapshots.dribbling,
+        defense: playerSnapshots.defense,
+        physical: playerSnapshots.physical,
+      }).from(playerSnapshots)
+        .where(and(
+          inArray(playerSnapshots.playerId, playerIds),
+          gte(playerSnapshots.createdAt, recentSince),
+        ))
+        .orderBy(asc(playerSnapshots.playerId), asc(playerSnapshots.createdAt)),
+      db.select({
+        playerId: progressionObservations.playerId,
+        interval: progressionObservations.interval,
+        overall: progressionObservations.overall,
+        pace: progressionObservations.pace,
+        shooting: progressionObservations.shooting,
+        passing: progressionObservations.passing,
+        dribbling: progressionObservations.dribbling,
+        defense: progressionObservations.defense,
+        physical: progressionObservations.physical,
+        observedAt: progressionObservations.observedAt,
+      }).from(progressionObservations)
+        .where(and(
+          inArray(progressionObservations.playerId, playerIds),
+          gte(progressionObservations.observedAt, recentSince),
+        ))
+        .orderBy(asc(progressionObservations.playerId), asc(progressionObservations.observedAt)),
+    ]);
 
-    const profile: Profile = {
-      age: player.age,
-      overall: player.overall,
-      position,
-      stats: {
-        pace: player.pace ?? undefined,
-        shooting: player.shooting ?? undefined,
-        passing: player.passing ?? undefined,
-        dribbling: player.dribbling ?? undefined,
-        defense: player.defense ?? undefined,
-        physical: player.physical ?? undefined,
-        goalkeeping: player.goalkeeping ?? undefined,
-      },
-      weeklyMomentum,
-    };
+    const snapshotsByPlayer = new Map<number, Array<(typeof snapshotRows)[number]>>();
+    for (const snapshot of snapshotRows) {
+      const list = snapshotsByPlayer.get(snapshot.playerId) || [];
+      list.push(snapshot);
+      snapshotsByPlayer.set(snapshot.playerId, list);
+    }
 
-    const neighbours = selectNeighbours(profile, trainingSamples);
-    if (neighbours.length < MIN_NEIGHBOURS) continue;
+    const observationsByPlayer = new Map<number, Array<(typeof observationRows)[number]>>();
+    for (const observation of observationRows) {
+      const list = observationsByPlayer.get(observation.playerId) || [];
+      list.push(observation);
+      observationsByPlayer.set(observation.playerId, list);
+    }
 
-    const empiricalGain = Math.max(
-      0,
-      Math.round(weightedMean(neighbours, (neighbour) => neighbour.remainingGain))
-    );
-    const empiricalProbabilities = THRESHOLDS.map(
-      (threshold) => probability(neighbours, threshold)
-    );
-    const calibrated = calibrateWithOfficialGuide(
-      player.age,
-      empiricalGain,
-      empiricalProbabilities
-    );
-    const predictedGain = Math.min(99 - player.overall, calibrated.gain);
-    const probabilities = calibrated.probabilities;
-    const value = {
-      playerId: player.id,
-      predictedGain,
-      predictedOverall: player.overall + predictedGain,
-      probabilityGain10: probabilities[0],
-      probabilityGain15: probabilities[1],
-      probabilityGain20: probabilities[2],
-      probabilityGain25: probabilities[3],
-      probabilityGain30: probabilities[4],
-      sampleSize: neighbours.length,
-      confidence: confidence(neighbours, weeklyMomentum !== undefined),
-      modelVersion: MODEL_VERSION,
-      updatedAt: new Date(),
-    };
+    const values = [];
+    for (const player of playerBatch) {
+      const position = primaryPosition(player.positions);
+      const weeklyMomentum = observationMomentum(observationsByPlayer.get(player.id) || [])
+        ?? snapshotMomentum(snapshotsByPlayer.get(player.id) || [], position);
+      if (weeklyMomentum !== undefined) withCurve++;
 
-    await db.insert(playerPredictions).values(value).onDuplicateKeyUpdate({
-      set: {
-        predictedGain: sql.raw('VALUES(predicted_gain)'),
-        predictedOverall: sql.raw('VALUES(predicted_overall)'),
-        probabilityGain10: sql.raw('VALUES(probability_gain_10)'),
-        probabilityGain15: sql.raw('VALUES(probability_gain_15)'),
-        probabilityGain20: sql.raw('VALUES(probability_gain_20)'),
-        probabilityGain25: sql.raw('VALUES(probability_gain_25)'),
-        probabilityGain30: sql.raw('VALUES(probability_gain_30)'),
-        sampleSize: sql.raw('VALUES(sample_size)'),
-        confidence: sql.raw('VALUES(confidence)'),
-        modelVersion: sql.raw('VALUES(model_version)'),
-        updatedAt: sql.raw('NOW()'),
-      },
-    });
-    written++;
+      const profile: Profile = {
+        age: player.age,
+        overall: player.overall,
+        position,
+        stats: {
+          pace: player.pace ?? undefined,
+          shooting: player.shooting ?? undefined,
+          passing: player.passing ?? undefined,
+          dribbling: player.dribbling ?? undefined,
+          defense: player.defense ?? undefined,
+          physical: player.physical ?? undefined,
+          goalkeeping: player.goalkeeping ?? undefined,
+        },
+        weeklyMomentum,
+      };
+
+      const neighbours = selectNeighbours(profile, trainingIndex);
+      if (neighbours.length < MIN_NEIGHBOURS) continue;
+
+      const empiricalGain = Math.max(
+        0,
+        Math.round(weightedMean(neighbours, (neighbour) => neighbour.remainingGain))
+      );
+      const empiricalProbabilities = THRESHOLDS.map(
+        (threshold) => probability(neighbours, threshold)
+      );
+      const calibrated = calibrateWithOfficialGuide(
+        player.age,
+        empiricalGain,
+        empiricalProbabilities
+      );
+      const predictedGain = Math.min(99 - player.overall, calibrated.gain);
+      const probabilities = calibrated.probabilities;
+
+      values.push({
+        playerId: player.id,
+        predictedGain,
+        predictedOverall: player.overall + predictedGain,
+        probabilityGain10: probabilities[0],
+        probabilityGain15: probabilities[1],
+        probabilityGain20: probabilities[2],
+        probabilityGain25: probabilities[3],
+        probabilityGain30: probabilities[4],
+        sampleSize: neighbours.length,
+        confidence: confidence(neighbours, weeklyMomentum !== undefined),
+        modelVersion: MODEL_VERSION,
+        updatedAt: new Date(),
+      });
+    }
+
+    if (values.length) {
+      await db.insert(playerPredictions).values(values).onDuplicateKeyUpdate({
+        set: {
+          predictedGain: sql.raw('VALUES(predicted_gain)'),
+          predictedOverall: sql.raw('VALUES(predicted_overall)'),
+          probabilityGain10: sql.raw('VALUES(probability_gain_10)'),
+          probabilityGain15: sql.raw('VALUES(probability_gain_15)'),
+          probabilityGain20: sql.raw('VALUES(probability_gain_20)'),
+          probabilityGain25: sql.raw('VALUES(probability_gain_25)'),
+          probabilityGain30: sql.raw('VALUES(probability_gain_30)'),
+          sampleSize: sql.raw('VALUES(sample_size)'),
+          confidence: sql.raw('VALUES(confidence)'),
+          modelVersion: sql.raw('VALUES(model_version)'),
+          updatedAt: sql.raw('NOW()'),
+        },
+      });
+      written += values.length;
+    }
+
+    if ((offset / PREDICTION_BATCH_SIZE + 1) % 25 === 0 || offset + playerBatch.length === activePlayers.length) {
+      console.log(
+        '[Predictor] Predictions ' + Math.min(offset + playerBatch.length, activePlayers.length) +
+        '/' + activePlayers.length
+      );
+    }
   }
 
   console.log(

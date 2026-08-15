@@ -6,6 +6,10 @@ on:
       timezone: 'Europe/Paris'
   workflow_dispatch:
 
+concurrency:
+  group: player-index-and-snapshots
+  cancel-in-progress: false
+
 jobs:
   crawl-players-weekly:
     permissions:
@@ -99,6 +103,14 @@ jobs:
 
       - name: Store absolute player snapshots
         run: npm run crawl:snapshots
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+      - name: Derive week, month, season and total progressions
+        run: npm run derive:progressions
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}

@@ -39,9 +39,8 @@ jobs:
 
   predictions:
     needs: crawl-24h
-    if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     environment: Crawling
 
     steps:
@@ -55,6 +54,8 @@ jobs:
       - name: Refresh predictions
         run: npm run predict:progressions
         env:
+          # Batches keep normal use small; this leaves room for the training set.
+          NODE_OPTIONS: --max-old-space-size=5120
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}

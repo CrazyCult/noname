@@ -8,8 +8,9 @@ on:
       timezone: 'Europe/Paris'
   workflow_dispatch:
 
+# Shared queue: no two progression crawls ever hit MFL at the same time.
 concurrency:
-  group: daily-progression-crawl
+  group: progression-crawl
   cancel-in-progress: false
 
 jobs:

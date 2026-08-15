@@ -1,0 +1,38 @@
+name: Crawl Progressions CURRENT_SEASON
+
+on:
+  schedule:
+    - cron: '45 12 * * *'
+      timezone: 'Europe/Paris'
+  workflow_dispatch:
+
+# All progression intervals share one queue to avoid concurrent MFL API calls.
+concurrency:
+  group: progression-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl-progressions-current-season:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: Crawling
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Crawl Progressions CURRENT_SEASON
+        run: npm run crawl:progressions CURRENT_SEASON
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MFL_API_URL: ${{ secrets.MFL_API_URL }}

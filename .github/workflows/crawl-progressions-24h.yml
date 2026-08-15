@@ -3,6 +3,11 @@ name: Crawl Progressions 24H
 on:
   workflow_dispatch:
 
+# Manual runs use the same queue as scheduled progression crawls.
+concurrency:
+  group: progression-crawl
+  cancel-in-progress: false
+
 jobs:
   crawl-progressions-24h:
     runs-on: ubuntu-latest

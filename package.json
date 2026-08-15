@@ -15,6 +15,7 @@
     "crawl:progressions:daily": "tsx scripts/crawl-progressions.ts",
     "crawl:progressions:all": "tsx scripts/crawl-progressions.ts --all",
     "crawl:snapshots": "tsx src/scripts/crawl-snapshots.ts",
+    "derive:progressions": "tsx scripts/derive-progressions.ts",
     "crawl:history": "tsx scripts/crawl-history.ts",
     "predict:progressions": "tsx scripts/predict-progressions.ts"
   },

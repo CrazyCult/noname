@@ -1,7 +1,15 @@
 name: Crawl Progressions ALL
 
 on:
+  schedule:
+    - cron: '0 18 * * *'
+      timezone: 'Europe/Paris'
   workflow_dispatch:
+
+# Shared queue: this crawl waits rather than calling MFL alongside another one.
+concurrency:
+  group: progression-crawl
+  cancel-in-progress: false
 
 jobs:
   crawl-progressions-all:

@@ -13,7 +13,6 @@
     "crawl:players": "tsx scripts/crawl-players.ts",
     "crawl:progressions": "tsx scripts/crawl-progressions.ts",
     "crawl:progressions:daily": "tsx scripts/crawl-progressions.ts",
-    "crawl:progressions:all": "tsx scripts/crawl-progressions.ts --all",
     "crawl:snapshots": "tsx src/scripts/crawl-snapshots.ts",
     "derive:progressions": "tsx scripts/derive-progressions.ts",
     "crawl:history": "tsx scripts/crawl-history.ts",

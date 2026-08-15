@@ -13,8 +13,10 @@ const DELAY_MS = 1000;
 const MAX_RETRIES = 5;
 const RATE_LIMIT_COOLDOWN_MS = 30_000;
 
-const VALID_INTERVALS: ProgressionInterval[] = ['24H', 'WEEK', 'MONTH', 'ALL', 'CURRENT_SEASON'];
-const DAILY_INTERVALS: ProgressionInterval[] = ['CURRENT_SEASON', '24H', 'WEEK'];
+// Long periods are derived from player history and absolute snapshots.
+// The MFL progression endpoint is retained only for the live 24-hour signal.
+const VALID_INTERVALS: ProgressionInterval[] = ['24H'];
+const DAILY_INTERVALS: ProgressionInterval[] = ['24H'];
 
 function formatDuration(ms: number): string {
   const s = Math.floor(ms / 1000);
